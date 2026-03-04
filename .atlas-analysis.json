@@ -1,0 +1,208 @@
+{
+  "projectType": "framework",
+  "projectName": "Agno",
+  "projectDescription": "Build, run, and manage agentic software at scale with a comprehensive Python framework.",
+  "theme": "palm",
+  "primaryColor": "#fc4414",
+  "lightColor": "#fc4414",
+  "darkColor": "#1c1c1c",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation",
+              "core-concepts"
+            ]
+          },
+          {
+            "group": "Core Building Blocks",
+            "pages": [
+              "agents/overview",
+              "agents/configuration",
+              "agents/instructions",
+              "agents/tools",
+              "agents/structured-output",
+              "teams/overview",
+              "teams/modes",
+              "teams/coordination",
+              "workflows/overview",
+              "workflows/steps",
+              "workflows/control-flow",
+              "workflows/error-handling"
+            ]
+          },
+          {
+            "group": "Production Runtime",
+            "pages": [
+              "agent-os/overview",
+              "agent-os/getting-started",
+              "agent-os/deployment",
+              "agent-os/authentication",
+              "agent-os/api-reference"
+            ]
+          },
+          {
+            "group": "Memory & State",
+            "pages": [
+              "memory/overview",
+              "memory/user-memories",
+              "memory/session-state",
+              "storage/overview",
+              "storage/databases"
+            ]
+          },
+          {
+            "group": "Knowledge & RAG",
+            "pages": [
+              "knowledge/overview",
+              "knowledge/document-loaders",
+              "knowledge/chunking",
+              "knowledge/embeddings",
+              "knowledge/vector-databases",
+              "knowledge/retrieval"
+            ]
+          },
+          {
+            "group": "Advanced Features",
+            "pages": [
+              "learning/overview",
+              "learning/self-improvement",
+              "reasoning/overview",
+              "reasoning/chain-of-thought",
+              "guardrails/overview",
+              "guardrails/input-validation",
+              "approval/human-in-the-loop",
+              "evals/overview",
+              "tracing/overview"
+            ]
+          },
+          {
+            "group": "Models",
+            "pages": [
+              "models/overview",
+              "models/openai",
+              "models/anthropic",
+              "models/google",
+              "models/aws-bedrock",
+              "models/azure",
+              "models/custom"
+            ]
+          },
+          {
+            "group": "Tools & Integrations",
+            "pages": [
+              "tools/overview",
+              "tools/built-in",
+              "tools/custom-tools",
+              "tools/mcp",
+              "integrations/overview"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core Classes",
+            "pages": [
+              "api/agent",
+              "api/team",
+              "api/workflow",
+              "api/agent-os"
+            ]
+          },
+          {
+            "group": "Models",
+            "pages": [
+              "api/models/base",
+              "api/models/message",
+              "api/models/response"
+            ]
+          },
+          {
+            "group": "Tools & Functions",
+            "pages": [
+              "api/tools/toolkit",
+              "api/tools/function",
+              "api/tools/decorator"
+            ]
+          },
+          {
+            "group": "Storage & Memory",
+            "pages": [
+              "api/storage/base",
+              "api/storage/sqlite",
+              "api/storage/postgres",
+              "api/memory/manager",
+              "api/knowledge/protocol"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "api/guardrails",
+              "api/evals",
+              "api/reasoning",
+              "api/learning"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Cookbook",
+        "groups": [
+          {
+            "group": "Examples",
+            "pages": [
+              "cookbook/quickstart",
+              "cookbook/agents",
+              "cookbook/teams",
+              "cookbook/workflows",
+              "cookbook/production"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Framework for building agents, teams, and workflows with memory and knowledge",
+    "Production runtime (AgentOS) for serving agents as scalable FastAPI services",
+    "100+ tool integrations including MCP, GitHub, web search, and data sources",
+    "40+ model providers including OpenAI, Anthropic, Google, AWS Bedrock, Azure",
+    "RAG with vector databases, hybrid search, and agentic retrieval",
+    "Memory management for user preferences and session state",
+    "Self-learning capabilities with automated improvement loops",
+    "Guardrails for input validation, PII detection, and safety",
+    "Human-in-the-loop approval workflows for sensitive operations",
+    "Native tracing, monitoring, and evaluation tools",
+    "Persistent storage with PostgreSQL, SQLite, MongoDB, Redis",
+    "Stateless, horizontally scalable runtime architecture"
+  ],
+  "publicApiSurface": [
+    "Agent - Core agent class with tools, memory, and knowledge",
+    "Team - Multi-agent coordination with dynamic collaboration",
+    "Workflow - Sequential and parallel execution pipelines",
+    "AgentOS - Production runtime for serving agents as APIs",
+    "Model - Base model class and 40+ provider implementations",
+    "Toolkit - Tool registration and execution framework",
+    "Function - Decorator for creating custom tools",
+    "KnowledgeProtocol - RAG and document retrieval interface",
+    "MemoryManager - User memory and preference management",
+    "BaseDb/AsyncBaseDb - Database abstraction for storage",
+    "Guardrail - Input validation and safety checks",
+    "BaseEval - Evaluation and testing framework",
+    "LearningMachine - Self-improvement and learning loops",
+    "MCPTools - Model Context Protocol tool integration",
+    "YFinanceTools - Financial data retrieval",
+    "GitHubTools - GitHub API integration",
+    "DuckDuckGoTools - Web search capabilities"
+  ]
+}
