@@ -8,30 +8,52 @@ Embeddings convert text into numerical vectors for similarity search.
 ## OpenAI embeddings
 
 ```python
-from agno.embedder.openai import OpenAIEmbedder
+from agno.knowledge import Knowledge
+from agno.knowledge.embedder.openai import OpenAIEmbedder
 
-knowledge = PDFKnowledge(
-    embedder=OpenAIEmbedder(model="text-embedding-3-small"),
-    vector_db=vector_db
+knowledge = Knowledge(
+    path="docs/",
+    vector_db=vector_db,
+    embedder=OpenAIEmbedder(model="text-embedding-3-small")
 )
 ```
 
-## Other providers
+## Google Gemini embeddings
 
 ```python
-from agno.embedder.anthropic import AnthropicEmbedder
-from agno.embedder.google import GeminiEmbedder
+from agno.knowledge.embedder.google import GeminiEmbedder
 
-# Anthropic
-knowledge = PDFKnowledge(
-    embedder=AnthropicEmbedder(),
-    vector_db=vector_db
+knowledge = Knowledge(
+    path="docs/",
+    vector_db=vector_db,
+    embedder=GeminiEmbedder(model="gemini-embedding-001")
 )
+```
 
-# Google
-knowledge = PDFKnowledge(
-    embedder=GeminiEmbedder(),
-    vector_db=vector_db
+## Azure OpenAI embeddings
+
+```python
+from agno.knowledge.embedder.azure import AzureOpenAIEmbedder
+
+knowledge = Knowledge(
+    path="docs/",
+    vector_db=vector_db,
+    embedder=AzureOpenAIEmbedder(
+        model="text-embedding-3-small",
+        azure_deployment="my-embedding-deployment"
+    )
+)
+```
+
+## Ollama embeddings (local)
+
+```python
+from agno.knowledge.embedder.ollama import OllamaEmbedder
+
+knowledge = Knowledge(
+    path="docs/",
+    vector_db=vector_db,
+    embedder=OllamaEmbedder(model="nomic-embed-text")
 )
 ```
 

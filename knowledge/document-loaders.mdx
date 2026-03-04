@@ -3,37 +3,60 @@ title: "Document loaders"
 description: "Load documents from various sources"
 ---
 
-Agno supports loading documents from many formats.
+Agno's `Knowledge` class can load documents from multiple sources and formats.
 
-## PDF documents
+## From local files
 
 ```python
-from agno.knowledge.pdf import PDFKnowledge
+from agno.knowledge import Knowledge
+from agno.vectordb.chroma import ChromaDb
 
-knowledge = PDFKnowledge(
-    path="docs/",
-    vector_db=vector_db
+knowledge = Knowledge(
+    path="docs/",  # Directory with PDFs, text files, etc.
+    vector_db=ChromaDb(collection="docs")
 )
+
+# Load the documents
+knowledge.load()
 ```
 
-## Text files
+## From URLs
 
 ```python
-from agno.knowledge.text import TextKnowledge
-
-knowledge = TextKnowledge(
-    path="docs/",
-    vector_db=vector_db
-)
-```
-
-## Web pages
-
-```python
-from agno.knowledge.website import WebsiteKnowledge
-
-knowledge = WebsiteKnowledge(
+knowledge = Knowledge(
     urls=["https://docs.agno.com"],
+    vector_db=ChromaDb(collection="docs")
+)
+
+knowledge.load()
+```
+
+## Supported formats
+
+The Knowledge class automatically detects and loads:
+
+- **PDF documents** - `.pdf` files
+- **Text files** - `.txt`, `.md` files  
+- **Word documents** - `.docx` files
+- **Web pages** - Any HTTP/HTTPS URL
+- **CSV files** - `.csv` files
+- **JSON files** - `.json` files
+
+## From remote storage
+
+```python
+# From S3
+knowledge = Knowledge(
+    s3_bucket="my-bucket",
+    s3_prefix="docs/",
+    vector_db=vector_db
+)
+
+# From GitHub
+knowledge = Knowledge(
+    github_repo="agno-agi/agno",
+    github_branch="main",
+    github_path="docs/",
     vector_db=vector_db
 )
 ```

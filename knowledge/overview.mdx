@@ -16,11 +16,11 @@ A knowledge base stores and retrieves documents:
 
 ```python
 from agno.agent import Agent
-from agno.knowledge.pdf import PDFKnowledge
+from agno.knowledge import Knowledge
 from agno.vectordb.pgvector import PgVector
 
 # Create knowledge base
-knowledge = PDFKnowledge(
+knowledge = Knowledge(
     path="docs/",
     vector_db=PgVector(
         table_name="agno_docs",
@@ -39,6 +39,23 @@ agent = Agent(
 )
 
 response = agent.run("What is Agno?")
+```
+
+## Using ChromaDB (development)
+
+```python
+from agno.knowledge import Knowledge
+from agno.vectordb.chroma import ChromaDb
+
+knowledge = Knowledge(
+    path="docs/",
+    vector_db=ChromaDb(
+        collection="docs",
+        path="./chroma_db"
+    )
+)
+
+knowledge.load()
 ```
 
 See [cookbook examples](/cookbook/quickstart) for complete patterns.

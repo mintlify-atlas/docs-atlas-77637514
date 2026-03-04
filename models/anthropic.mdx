@@ -18,7 +18,7 @@ from agno.models.anthropic import Claude
 
 agent = Agent(
     model=Claude(
-        id="claude-sonnet-4-6",
+        id="claude-sonnet-4-5",
         temperature=0.7,
         max_tokens=4000
     )
@@ -27,8 +27,9 @@ agent = Agent(
 
 ## Available models
 
-- `claude-sonnet-4-6` - Latest Sonnet (recommended)
-- `claude-opus-4-3` - Most capable
-- `claude-sonnet-4` - Balanced performance
+- `claude-sonnet-4-5` - Latest Sonnet (recommended)
+- `claude-sonnet-4-20250514` - Latest dated release
+- `claude-opus-4` - Most capable
+- `claude-3-5-sonnet-20241022` - Previous generation
 
 See [Anthropic documentation](https://docs.anthropic.com) for details.

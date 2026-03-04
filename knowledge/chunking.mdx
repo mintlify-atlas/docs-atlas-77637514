@@ -8,7 +8,9 @@ Chunking divides documents into smaller pieces for better retrieval.
 ## Default chunking
 
 ```python
-knowledge = PDFKnowledge(
+from agno.knowledge import Knowledge
+
+knowledge = Knowledge(
     path="docs/",
     vector_db=vector_db,
     chunk_size=1000,  # Characters per chunk
@@ -21,13 +23,32 @@ knowledge = PDFKnowledge(
 Use Chonkie for semantic-aware chunking:
 
 ```python
-from agno.knowledge.pdf import PDFKnowledge
-from chonkie import SemanticChunker
+from agno.knowledge import Knowledge
+from agno.knowledge.chunking.semantic import SemanticChunker
 
-knowledge = PDFKnowledge(
+knowledge = Knowledge(
     path="docs/",
     vector_db=vector_db,
-    chunking_strategy=SemanticChunker()
+    chunker=SemanticChunker()
+)
+```
+
+## Other chunking strategies
+
+```python
+from agno.knowledge.chunking.fixed import FixedChunker
+from agno.knowledge.chunking.recursive import RecursiveChunker
+
+# Fixed-size chunks
+knowledge = Knowledge(
+    path="docs/",
+    chunker=FixedChunker(chunk_size=500)
+)
+
+# Recursive chunking (splits by paragraphs, then sentences)
+knowledge = Knowledge(
+    path="docs/",
+    chunker=RecursiveChunker()
 )
 ```
 
