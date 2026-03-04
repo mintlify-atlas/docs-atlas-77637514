@@ -1,0 +1,639 @@
+---
+title: Database Adapters
+description: Configure PostgreSQL, SQLite, MongoDB, DynamoDB, Redis, and other database adapters for Agno
+---
+
+This guide covers detailed configuration for each database adapter supported by Agno.
+
+## PostgreSQL
+
+PostgreSQL is the recommended database for production applications.
+
+### Installation
+
+```bash
+pip install psycopg
+```
+
+### Configuration
+
+<CodeGroup>
+
+```python Sync PostgreSQL
+from agno.db.postgres import PostgresDb
+
+db = PostgresDb(
+    db_url="postgresql+psycopg://user:password@localhost:5432/agno",
+    session_table="agno_sessions",
+    memory_table="agno_memories",
+    knowledge_table="agno_knowledge",
+)
+```
+
+```python Async PostgreSQL
+from agno.db.postgres import AsyncPostgresDb
+
+db = AsyncPostgresDb(
+    db_url="postgresql+psycopg://user:password@localhost:5432/agno"
+)
+```
+
+</CodeGroup>
+
+### Docker Setup
+
+Run PostgreSQL locally with Docker:
+
+```bash
+docker run -d \
+  --name agno-postgres \
+  -e POSTGRES_USER=ai \
+  -e POSTGRES_PASSWORD=ai \
+  -e POSTGRES_DB=ai \
+  -p 5532:5432 \
+  postgres:16
+```
+
+### Connection URL Format
+
+```
+postgresql+psycopg://user:password@host:port/database
+```
+
+### Example: Complete Setup
+
+```python cookbook/06_storage/01_persistent_session_storage.py:1
+from agno.agent import Agent
+from agno.db.postgres import PostgresDb
+from agno.models.openai import OpenAIChat
+
+db = PostgresDb(
+    db_url="postgresql+psycopg://ai:ai@localhost:5532/ai",
+    session_table="sessions"
+)
+
+agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    db=db,
+    session_id="persistent_session",
+    add_history_to_context=True,
+)
+
+agent.print_response("Tell me an interesting fact about space")
+```
+
+### Connection Pooling
+
+PostgreSQL adapter automatically handles connection pooling:
+
+```python
+db = PostgresDb(
+    db_url="postgresql+psycopg://user:password@localhost:5432/agno",
+    # Connection pool is managed automatically
+)
+
+# Close connections when done
+db.close()
+```
+
+## SQLite
+
+SQLite is perfect for development, testing, and small applications.
+
+### Installation
+
+```bash
+pip install aiosqlite  # For async support
+```
+
+### Configuration
+
+<CodeGroup>
+
+```python Sync SQLite
+from agno.db.sqlite import SqliteDb
+
+db = SqliteDb(
+    db_file="tmp/agent.db",
+    session_table="agno_sessions",
+    memory_table="agno_memories",
+)
+```
+
+```python Async SQLite
+from agno.db.sqlite import AsyncSqliteDb
+
+db = AsyncSqliteDb(
+    db_file="tmp/agent.db"
+)
+```
+
+</CodeGroup>
+
+### File Locations
+
+```python
+# Relative path
+db = SqliteDb(db_file="agent.db")
+
+# Absolute path
+db = SqliteDb(db_file="/var/data/agent.db")
+
+# Temporary directory
+db = SqliteDb(db_file="tmp/agent.db")
+```
+
+### Example: Development Database
+
+```python
+from agno.agent import Agent
+from agno.db.sqlite import SqliteDb
+
+db = SqliteDb(db_file="tmp/dev.db")
+
+agent = Agent(
+    db=db,
+    update_memory_on_run=True,
+)
+
+agent.print_response(
+    "My name is Alice",
+    user_id="alice@example.com"
+)
+```
+
+<Warning>
+**SQLite Limitations**: SQLite is not recommended for production applications with:
+- High concurrency (multiple concurrent writes)
+- Large-scale deployments
+- Distributed systems
+</Warning>
+
+## MongoDB
+
+MongoDB provides a flexible, document-oriented database.
+
+### Installation
+
+```bash
+pip install pymongo motor  # motor for async
+```
+
+### Configuration
+
+<CodeGroup>
+
+```python Sync MongoDB
+from agno.db.mongo import MongoDb
+
+db = MongoDb(
+    db_url="mongodb://localhost:27017",
+    db_name="agno",
+    session_collection="sessions",
+    memory_collection="memories",
+)
+```
+
+```python Async MongoDB
+from agno.db.mongo import AsyncMongoDb
+
+db = AsyncMongoDb(
+    db_url="mongodb://localhost:27017",
+    db_name="agno"
+)
+```
+
+</CodeGroup>
+
+### Docker Setup
+
+```bash
+docker run -d \
+  --name agno-mongo \
+  -p 27017:27017 \
+  -e MONGO_INITDB_ROOT_USERNAME=admin \
+  -e MONGO_INITDB_ROOT_PASSWORD=password \
+  mongo:latest
+```
+
+### Connection Strings
+
+```python
+# Local MongoDB
+db_url = "mongodb://localhost:27017"
+
+# MongoDB with auth
+db_url = "mongodb://user:password@localhost:27017"
+
+# MongoDB Atlas
+db_url = "mongodb+srv://user:password@cluster.mongodb.net/"
+```
+
+## DynamoDB
+
+DynamoDB is AWS's fully managed NoSQL database.
+
+### Installation
+
+```bash
+pip install boto3
+```
+
+### Configuration
+
+```python cookbook/06_storage/dynamodb/dynamo_for_agent.py:1
+from agno.agent import Agent
+from agno.db import DynamoDb
+import os
+
+# Set AWS credentials
+os.environ["AWS_ACCESS_KEY_ID"] = "your_access_key"
+os.environ["AWS_SECRET_ACCESS_KEY"] = "your_secret_key"
+os.environ["AWS_REGION"] = "us-east-1"
+
+db = DynamoDb(
+    table_name="agno-sessions",
+    region="us-east-1"
+)
+
+agent = Agent(
+    db=db,
+    name="DynamoDB Agent",
+    add_history_to_context=True,
+)
+
+agent.print_response("Hello from DynamoDB!")
+```
+
+### AWS Credentials
+
+<Tabs>
+  <Tab title="Environment Variables">
+    ```python
+    import os
+    
+    os.environ["AWS_ACCESS_KEY_ID"] = "your_key"
+    os.environ["AWS_SECRET_ACCESS_KEY"] = "your_secret"
+    os.environ["AWS_REGION"] = "us-east-1"
+    
+    db = DynamoDb()
+    ```
+  </Tab>
+  <Tab title="AWS Profile">
+    ```python
+    # Use AWS CLI profile
+    db = DynamoDb(
+        region="us-east-1",
+        # Uses default AWS credentials
+    )
+    ```
+  </Tab>
+  <Tab title="IAM Roles">
+    ```python
+    # On AWS (EC2, Lambda, ECS)
+    # Uses IAM role automatically
+    db = DynamoDb(
+        region="us-east-1"
+    )
+    ```
+  </Tab>
+</Tabs>
+
+### Custom Table Names
+
+```python
+db = DynamoDb(
+    session_table="my_app_sessions",
+    memory_table="my_app_memories",
+    region="us-east-1"
+)
+```
+
+## Redis
+
+Redis provides high-performance caching and session storage.
+
+### Installation
+
+```bash
+pip install redis
+```
+
+### Configuration
+
+```python
+from agno.db.redis import RedisDb
+
+db = RedisDb(
+    host="localhost",
+    port=6379,
+    db=0,
+    password="your_password",  # Optional
+)
+```
+
+### Docker Setup
+
+```bash
+docker run -d \
+  --name agno-redis \
+  -p 6379:6379 \
+  redis:latest
+```
+
+### Connection Options
+
+```python
+# Basic connection
+db = RedisDb(host="localhost", port=6379)
+
+# With password
+db = RedisDb(
+    host="localhost",
+    port=6379,
+    password="your_password"
+)
+
+# Redis URL
+db = RedisDb.from_url("redis://localhost:6379/0")
+```
+
+<Note>
+Redis is best used for caching and temporary session storage. For persistent storage, use PostgreSQL or MongoDB.
+</Note>
+
+## In-Memory Database
+
+In-memory database is perfect for testing and development.
+
+### Configuration
+
+```python cookbook/06_storage/in_memory/in_memory_storage_for_agent.py:1
+from agno.agent import Agent
+from agno.db.in_memory import InMemoryDb
+
+db = InMemoryDb()
+
+agent = Agent(db=db)
+
+agent.print_response("This is stored in memory only")
+```
+
+### Use Cases
+
+- **Unit tests**: Fast, isolated tests
+- **Development**: Quick prototyping
+- **Temporary data**: No persistence needed
+- **Performance testing**: Eliminate database bottlenecks
+
+<Warning>
+**No Persistence**: Data is lost when the process ends. Use only for testing and development.
+</Warning>
+
+## Firestore
+
+Google Cloud Firestore for cloud-native applications.
+
+### Installation
+
+```bash
+pip install google-cloud-firestore
+```
+
+### Configuration
+
+```python
+from agno.db.firestore import FirestoreDb
+
+db = FirestoreDb(
+    project_id="your-project-id",
+    credentials_path="path/to/credentials.json"
+)
+```
+
+### GCP Authentication
+
+```python
+import os
+
+# Set credentials
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "credentials.json"
+
+db = FirestoreDb(project_id="your-project-id")
+```
+
+## Database Configuration Reference
+
+### Common Parameters
+
+All database adapters support these parameters:
+
+```python
+db = DatabaseAdapter(
+    # Table/Collection Names
+    session_table="agno_sessions",
+    memory_table="agno_memories",
+    metrics_table="agno_metrics",
+    eval_table="agno_eval_runs",
+    knowledge_table="agno_knowledge",
+    traces_table="agno_traces",
+    spans_table="agno_spans",
+    culture_table="agno_culture",
+    learnings_table="agno_learnings",
+    
+    # Optional: Custom ID
+    id="my_database_instance"
+)
+```
+
+### Serialization
+
+Database adapters can serialize/deserialize objects:
+
+```python
+# Get raw dict (no deserialization)
+session_dict = db.get_session(
+    session_id="123",
+    deserialize=False
+)
+
+# Get Session object (default)
+session_obj = db.get_session(
+    session_id="123",
+    deserialize=True
+)
+```
+
+## Connection Management
+
+### Closing Connections
+
+```python
+# Always close when done
+db.close()
+
+# Or use in application shutdown
+import atexit
+
+atexit.register(db.close)
+```
+
+### Async Connection Management
+
+```python
+import asyncio
+from agno.db.postgres import AsyncPostgresDb
+
+async def main():
+    db = AsyncPostgresDb(db_url="postgresql+psycopg://...")
+    
+    try:
+        # Use database
+        await db.get_session(session_id="123")
+    finally:
+        # Always close
+        await db.close()
+
+asyncio.run(main())
+```
+
+## Environment Configuration
+
+Use environment variables for database configuration:
+
+```python
+import os
+from agno.db.postgres import PostgresDb
+
+db = PostgresDb(
+    db_url=os.getenv("DATABASE_URL", "postgresql+psycopg://localhost/agno")
+)
+```
+
+```bash .env
+# PostgreSQL
+DATABASE_URL=postgresql+psycopg://user:password@host:port/database
+
+# MongoDB
+MONGO_URL=mongodb://user:password@host:port
+MONGO_DB_NAME=agno
+
+# DynamoDB
+AWS_ACCESS_KEY_ID=your_key
+AWS_SECRET_ACCESS_KEY=your_secret
+AWS_REGION=us-east-1
+
+# Redis
+REDIS_URL=redis://localhost:6379/0
+```
+
+## Testing Database Configuration
+
+Use different databases for testing:
+
+```python
+import os
+from agno.db.sqlite import SqliteDb
+from agno.db.postgres import PostgresDb
+
+if os.getenv("TESTING"):
+    # Use in-memory SQLite for tests
+    db = SqliteDb(db_file=":memory:")
+else:
+    # Use PostgreSQL for production
+    db = PostgresDb(db_url=os.getenv("DATABASE_URL"))
+```
+
+## Performance Tuning
+
+### Connection Pooling (PostgreSQL)
+
+```python
+from agno.db.postgres import PostgresDb
+
+db = PostgresDb(
+    db_url="postgresql+psycopg://...",
+    # Connection pool managed automatically
+)
+```
+
+### Batch Operations
+
+Use batch operations for better performance:
+
+```python
+# Batch upsert sessions
+sessions = [session1, session2, session3]
+db.upsert_sessions(sessions)
+
+# Batch upsert memories
+memories = [memory1, memory2, memory3]
+db.upsert_memories(memories)
+```
+
+## Troubleshooting
+
+### PostgreSQL Connection Issues
+
+```python
+# Check connection
+try:
+    db = PostgresDb(db_url="postgresql+psycopg://...")
+    print("Connected successfully")
+except Exception as e:
+    print(f"Connection failed: {e}")
+```
+
+### MongoDB Authentication
+
+```python
+# Ensure proper URL encoding for passwords
+from urllib.parse import quote_plus
+
+password = quote_plus("p@ssw0rd!")
+db_url = f"mongodb://user:{password}@localhost:27017"
+```
+
+### DynamoDB Permissions
+
+Ensure your IAM user/role has these permissions:
+```json
+{
+  "Effect": "Allow",
+  "Action": [
+    "dynamodb:GetItem",
+    "dynamodb:PutItem",
+    "dynamodb:UpdateItem",
+    "dynamodb:DeleteItem",
+    "dynamodb:Query",
+    "dynamodb:Scan"
+  ],
+  "Resource": "arn:aws:dynamodb:region:account:table/agno-*"
+}
+```
+
+## Best Practices
+
+<Note>
+1. **Use environment variables**: Never hardcode credentials
+2. **Close connections**: Always close database connections when done
+3. **Use connection pooling**: For better performance with PostgreSQL
+4. **Choose the right database**: PostgreSQL for production, SQLite for dev
+5. **Custom table names**: Avoid conflicts in shared databases
+6. **Test database config**: Use separate databases for testing
+7. **Monitor performance**: Track query performance in production
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="User Memories" icon="brain" href="/memory/user-memories">
+    Store and retrieve user memories
+  </Card>
+  <Card title="Session State" icon="messages" href="/memory/session-state">
+    Manage conversation history
+  </Card>
+  <Card title="Storage Overview" icon="database" href="/storage/overview">
+    Learn about storage architecture
+  </Card>
+</CardGroup>

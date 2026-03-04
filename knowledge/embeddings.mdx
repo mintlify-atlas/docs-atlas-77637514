@@ -1,0 +1,38 @@
+---
+title: "Embeddings"
+description: "Convert text to vector embeddings"
+---
+
+Embeddings convert text into numerical vectors for similarity search.
+
+## OpenAI embeddings
+
+```python
+from agno.embedder.openai import OpenAIEmbedder
+
+knowledge = PDFKnowledge(
+    embedder=OpenAIEmbedder(model="text-embedding-3-small"),
+    vector_db=vector_db
+)
+```
+
+## Other providers
+
+```python
+from agno.embedder.anthropic import AnthropicEmbedder
+from agno.embedder.google import GeminiEmbedder
+
+# Anthropic
+knowledge = PDFKnowledge(
+    embedder=AnthropicEmbedder(),
+    vector_db=vector_db
+)
+
+# Google
+knowledge = PDFKnowledge(
+    embedder=GeminiEmbedder(),
+    vector_db=vector_db
+)
+```
+
+See [cookbook examples](/cookbook/quickstart) for patterns.

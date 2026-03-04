@@ -1,0 +1,223 @@
+---
+title: PostgresDb
+description: PostgreSQL database integration for Agno
+---
+
+The `PostgresDb` class provides PostgreSQL storage for agents, sessions, memories, and more. It's the recommended database for production deployments.
+
+## Constructor
+
+```python
+from agno.db.postgres import PostgresDb
+
+db = PostgresDb(
+    host="localhost",
+    port=5432,
+    db="agno",
+    user="user",
+    password="password"
+)
+```
+
+## Parameters
+
+<ParamField path="host" type="str" default="localhost">
+  PostgreSQL server host.
+</ParamField>
+
+<ParamField path="port" type="int" default="5432">
+  PostgreSQL server port.
+</ParamField>
+
+<ParamField path="db" type="str" required>
+  Database name.
+</ParamField>
+
+<ParamField path="user" type="str" required>
+  Database user.
+</ParamField>
+
+<ParamField path="password" type="str" required>
+  Database password.
+</ParamField>
+
+<ParamField path="driver" type="str" default="psycopg">
+  Database driver: "psycopg" or "pg8000".
+</ParamField>
+
+<ParamField path="pool_size" type="int" default="5">
+  Connection pool size.
+</ParamField>
+
+<ParamField path="max_overflow" type="int" default="10">
+  Maximum overflow connections.
+</ParamField>
+
+<ParamField path="create_tables" type="bool" default="True">
+  If True, automatically creates required tables.
+</ParamField>
+
+<ParamField path="session_table" type="str" default="agno_sessions">
+  Name of the sessions table.
+</ParamField>
+
+And other table name parameters.
+
+## Methods
+
+Inherits all methods from `BaseDb`.
+
+### close()
+
+Close database connections and release pool resources.
+
+```python
+db.close()
+```
+
+## Example Usage
+
+<CodeGroup>
+```python Basic Connection
+from agno import Agent
+from agno.db.postgres import PostgresDb
+
+db = PostgresDb(
+    host="localhost",
+    db="agno",
+    user="agno_user",
+    password="secret"
+)
+
+agent = Agent(
+    model="gpt-4o",
+    db=db,
+    add_history_to_context=True
+)
+```
+
+```python With Environment Variables
+import os
+from agno.db.postgres import PostgresDb
+
+db = PostgresDb(
+    host=os.getenv("POSTGRES_HOST"),
+    db=os.getenv("POSTGRES_DB"),
+    user=os.getenv("POSTGRES_USER"),
+    password=os.getenv("POSTGRES_PASSWORD")
+)
+```
+
+```python Connection Pool
+from agno.db.postgres import PostgresDb
+
+db = PostgresDb(
+    host="localhost",
+    db="agno",
+    user="user",
+    password="password",
+    pool_size=10,
+    max_overflow=20
+)
+```
+
+```python SSL Connection
+from agno.db.postgres import PostgresDb
+
+db = PostgresDb(
+    host="prod-db.example.com",
+    port=5432,
+    db="agno",
+    user="user",
+    password="password",
+    sslmode="require"
+)
+```
+
+```python With Docker
+import os
+from agno.db.postgres import PostgresDb
+
+# docker run -d \
+#   --name postgres \
+#   -e POSTGRES_DB=agno \
+#   -e POSTGRES_USER=agno \
+#   -e POSTGRES_PASSWORD=agno \
+#   -p 5532:5432 \
+#   postgres:16
+
+db = PostgresDb(
+    host="localhost",
+    port=5532,
+    db="agno",
+    user="agno",
+    password="agno"
+)
+```
+</CodeGroup>
+
+## Production Setup
+
+### Connection String
+
+```python
+from agno.db.postgres import PostgresDb
+
+db = PostgresDb.from_url(
+    "postgresql://user:password@localhost:5432/agno"
+)
+```
+
+### With Connection Pooling
+
+```python
+db = PostgresDb(
+    host="db.example.com",
+    db="agno",
+    user="app_user",
+    password="secret",
+    pool_size=20,        # Core pool size
+    max_overflow=30,     # Additional connections
+    pool_timeout=30,     # Wait time for connection
+    pool_recycle=3600    # Recycle connections after 1 hour
+)
+```
+
+### Multi-tenancy
+
+```python
+# Separate tables per tenant
+tenant_db = PostgresDb(
+    host="localhost",
+    db="agno",
+    user="user",
+    password="password",
+    session_table=f"tenant_{tenant_id}_sessions",
+    memory_table=f"tenant_{tenant_id}_memories"
+)
+```
+
+## Best Practices
+
+1. **Use connection pooling**: Configure appropriate pool_size for your workload
+2. **Environment variables**: Store credentials in environment variables
+3. **SSL in production**: Always use SSL for production databases
+4. **Regular backups**: Set up automated backups
+5. **Monitor connections**: Monitor pool usage and adjust as needed
+6. **Close on shutdown**: Call `db.close()` during application shutdown
+7. **Indexes**: Ensure tables are properly indexed for your queries
+
+## Migration from SQLite
+
+```python
+from agno.db.sqlite import SQLiteDb
+from agno.db.postgres import PostgresDb
+
+# Export from SQLite
+sqlite_db = SQLiteDb(db_file="agent.db")
+sessions = sqlite_db.get_sessions(session_type=SessionType.AGENT)
+
+# Import to PostgreSQL
+postgres_db = PostgresDb(...)
+postgres_db.upsert_sessions(sessions)
+```

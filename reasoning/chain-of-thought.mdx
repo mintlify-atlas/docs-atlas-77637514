@@ -1,0 +1,306 @@
+---
+title: Chain-of-Thought Reasoning
+description: Implement custom multi-step reasoning strategies for any model
+---
+
+Chain-of-Thought (CoT) reasoning enables any model to break down complex problems into structured steps, even if the model doesn't have native reasoning capabilities.
+
+## Overview
+
+When you enable `reasoning=True` on an agent, Agno automatically detects whether the model has native reasoning support. If not, it falls back to Chain-of-Thought reasoning.
+
+```python
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+
+# This model doesn't have native reasoning
+# Agno will use Chain-of-Thought automatically
+agent = Agent(
+    model=OpenAIChat(id="gpt-4"),
+    reasoning=True,
+    reasoning_min_steps=2,
+    reasoning_max_steps=8,
+)
+```
+
+## How It Works
+
+Chain-of-Thought reasoning follows this process:
+
+<Steps>
+  <Step title="Initial Analysis">
+    Agent analyzes the problem and creates a first reasoning step:
+    ```python
+    {
+        "title": "Understand the problem",
+        "action": "I will identify the variables and constraints",
+        "result": "Total cost = $1.10, Bat = Ball + $1.00",
+        "next_action": "continue"
+    }
+    ```
+  </Step>
+
+  <Step title="Iterative Steps">
+    Agent continues reasoning until reaching a conclusion:
+    ```python
+    {
+        "title": "Solve the equation",
+        "action": "I will substitute and solve",
+        "result": "Ball + (Ball + $1.00) = $1.10, so Ball = $0.05",
+        "next_action": "final_answer"
+    }
+    ```
+  </Step>
+
+  <Step title="Final Answer">
+    Agent provides the final response based on reasoning steps
+  </Step>
+</Steps>
+
+## Reasoning Step Actions
+
+Each step specifies the next action:
+
+```python
+from agno.reasoning.step import NextAction
+
+class NextAction(str, Enum):
+    CONTINUE = "continue"          # Continue reasoning
+    VALIDATE = "validate"          # Validate current result
+    FINAL_ANSWER = "final_answer"  # Provide final answer
+    RESET = "reset"                # Start over
+```
+
+## Configuration
+
+### Step Limits
+
+Control how many reasoning steps are allowed:
+
+```python
+agent = Agent(
+    model=OpenAIChat(id="gpt-4"),
+    reasoning=True,
+    reasoning_min_steps=3,    # Require at least 3 steps
+    reasoning_max_steps=15,   # Allow up to 15 steps
+)
+```
+
+### Custom Reasoning Agent
+
+Provide your own reasoning agent for more control:
+
+```python
+from agno.agent import Agent
+from agno.reasoning.step import ReasoningSteps
+
+# Create a custom reasoning agent
+reasoning_agent = Agent(
+    name="Custom Reasoner",
+    model=OpenAIChat(id="gpt-4"),
+    output_schema=ReasoningSteps,  # Must output ReasoningSteps
+    instructions="""
+    You are a reasoning agent. Break down problems into clear steps.
+    Each step should have:
+    - title: Brief description
+    - action: What you will do
+    - result: What you discovered
+    - reasoning: Your thought process
+    - next_action: continue, validate, or final_answer
+    
+    Be thorough but concise. Validate your work.
+    """,
+)
+
+# Use the custom reasoning agent
+main_agent = Agent(
+    model=OpenAIChat(id="gpt-4"),
+    reasoning=True,
+    reasoning_agent=reasoning_agent,
+)
+```
+
+### Separate Reasoning Model
+
+Use a different model for reasoning:
+
+```python
+# Use a faster/cheaper model for main responses
+# and a more powerful model for reasoning
+agent = Agent(
+    model=OpenAIChat(id="gpt-4"),           # Main model
+    reasoning=True,
+    reasoning_model=OpenAIChat(id="o1"),   # Reasoning model
+)
+```
+
+## Example: Math Problem
+
+```python
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+
+agent = Agent(
+    model=OpenAIChat(id="gpt-4"),
+    reasoning=True,
+    reasoning_min_steps=3,
+    reasoning_max_steps=10,
+)
+
+response = agent.run(
+    "A train leaves Station A at 60 mph. Another train leaves Station B "
+    "(100 miles away) at 40 mph heading toward Station A. When do they meet?",
+    show_full_reasoning=True,
+)
+
+# Output shows reasoning steps:
+# Step 1: Define variables and setup
+# Step 2: Calculate combined speed
+# Step 3: Calculate time to meet
+# Step 4: Verify the answer
+# Final Answer: They meet in 1 hour
+```
+
+## Reasoning with Tools
+
+Chain-of-Thought can use tools during reasoning:
+
+```python
+from agno.tools import tool
+
+@tool
+def search_documentation(query: str) -> str:
+    """Search the documentation database.
+    
+    Args:
+        query: Search query
+    
+    Returns:
+        Relevant documentation
+    """
+    # Implementation
+    return results
+
+agent = Agent(
+    model=OpenAIChat(id="gpt-4"),
+    reasoning=True,
+    tools=[search_documentation],
+    reasoning_max_steps=8,
+)
+
+agent.print_response(
+    "How do I configure database connection pooling?",
+    show_full_reasoning=True,
+)
+
+# Reasoning steps might include:
+# 1. Search documentation for "connection pooling"
+# 2. Analyze the search results
+# 3. Identify configuration parameters
+# 4. Provide structured answer
+```
+
+## Accessing Reasoning Steps
+
+Get reasoning steps programmatically:
+
+```python
+response = agent.run("Complex question", stream=False)
+
+# Access reasoning steps
+if response.reasoning_messages:
+    for msg in response.reasoning_messages:
+        print(f"Role: {msg.role}")
+        print(f"Content: {msg.content}")
+
+# Or from metrics
+if response.metrics and response.metrics.reasoning_steps:
+    for step in response.metrics.reasoning_steps:
+        print(f"\nStep: {step.title}")
+        print(f"Action: {step.action}")
+        print(f"Result: {step.result}")
+        print(f"Confidence: {step.confidence}")
+```
+
+## Streaming Reasoning Steps
+
+Stream reasoning in real-time:
+
+```python
+from agno.agent import AgentEvent
+
+for event in agent.run("Question", stream=True):
+    if event.event_type == AgentEvent.reasoning_step:
+        step = event.reasoning_step
+        print(f"\n{'='*50}")
+        print(f"Step: {step.title}")
+        print(f"Action: {step.action}")
+        print(f"Result: {step.result}")
+        print(f"Next: {step.next_action}")
+    
+    elif event.event_type == AgentEvent.content_delta:
+        print(event.content, end="", flush=True)
+```
+
+## Reasoning Schema
+
+The reasoning output follows this structure:
+
+```python
+from agno.reasoning.step import ReasoningSteps, ReasoningStep
+
+class ReasoningSteps(BaseModel):
+    reasoning_steps: List[ReasoningStep]
+
+class ReasoningStep(BaseModel):
+    title: Optional[str]        # "Analyze the problem"
+    action: Optional[str]       # "I will identify variables"
+    result: Optional[str]       # "Found 3 variables: x, y, z"
+    reasoning: Optional[str]    # "I need to..."
+    next_action: Optional[NextAction]  # continue | final_answer
+    confidence: Optional[float] # 0.95
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Set Appropriate Limits" icon="sliders">
+    Use `reasoning_min_steps` to ensure thorough analysis, and `reasoning_max_steps` to prevent runaway reasoning
+  </Card>
+  <Card title="Validate Results" icon="check-double">
+    Include validation steps to catch errors in reasoning
+  </Card>
+  <Card title="Use Tools" icon="wrench">
+    Provide tools for calculation, search, and validation during reasoning
+  </Card>
+  <Card title="Custom Instructions" icon="file-lines">
+    Customize the reasoning agent's instructions for domain-specific reasoning
+  </Card>
+</CardGroup>
+
+## Comparison: Native vs Chain-of-Thought
+
+| Feature | Native Reasoning | Chain-of-Thought |
+|---------|-----------------|------------------|
+| Model Support | Specific models only | Any model |
+| Performance | Optimized by provider | Custom control |
+| Cost | Provider pricing | Separate reasoning calls |
+| Customization | Limited | Full control |
+| Tool Usage | Varies by model | Fully supported |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Reasoning Overview" icon="brain" href="/reasoning/overview">
+    Learn about native reasoning models
+  </Card>
+  <Card title="Evaluations" icon="chart-line" href="/evals/overview">
+    Measure reasoning quality and accuracy
+  </Card>
+  <Card title="Learning" icon="graduation-cap" href="/learning/overview">
+    Combine reasoning with memory
+  </Card>
+  <Card title="Guardrails" icon="shield" href="/guardrails/overview">
+    Add safety checks to reasoning
+  </Card>
+</CardGroup>

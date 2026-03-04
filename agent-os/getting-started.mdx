@@ -1,0 +1,499 @@
+---
+title: Getting Started with AgentOS
+description: Build and deploy your first production-ready agent service in minutes
+---
+
+This guide walks you through creating, configuring, and deploying an AgentOS application from scratch.
+
+## Prerequisites
+
+Before you begin, ensure you have:
+
+- Python 3.9 or higher
+- PostgreSQL database (recommended for production) or SQLite (for development)
+- OpenAI API key or other LLM provider credentials
+
+## Installation
+
+Install Agno with FastAPI and database dependencies:
+
+```bash
+pip install -U agno fastapi uvicorn sqlalchemy psycopg
+```
+
+<Note>
+For production deployments, use PostgreSQL. SQLite is suitable for development and testing only.
+</Note>
+
+## Step 1: Create Your First Agent
+
+Create a file called `basic.py`:
+
+```python basic.py
+from agno.agent import Agent
+from agno.db.postgres import PostgresDb
+from agno.models.openai import OpenAIChat
+from agno.os import AgentOS
+
+# Setup database connection
+db = PostgresDb(
+    id="basic-db",
+    db_url="postgresql+psycopg://ai:ai@localhost:5532/ai"
+)
+
+# Create a basic agent
+agent = Agent(
+    name="Basic Agent",
+    model=OpenAIChat(id="gpt-4o"),
+    db=db,
+    enable_session_summaries=True,
+    update_memory_on_run=True,
+    add_history_to_context=True,
+    num_history_runs=3,
+    markdown=True,
+)
+
+# Setup AgentOS
+agent_os = AgentOS(
+    id="basic-agent-os",
+    description="My first AgentOS application",
+    agents=[agent],
+)
+
+# Get the FastAPI app
+app = agent_os.get_app()
+
+if __name__ == "__main__":
+    agent_os.serve(app="basic:app", port=7777, reload=True)
+```
+
+## Step 2: Start Your Database
+
+For PostgreSQL with pgvector support:
+
+```bash
+# Using the cookbook script
+./cookbook/scripts/run_pgvector.sh
+
+# Or using Docker directly
+docker run -d \
+  --name agno-postgres \
+  -e POSTGRES_USER=ai \
+  -e POSTGRES_PASSWORD=ai \
+  -e POSTGRES_DB=ai \
+  -p 5532:5432 \
+  pgvector/pgvector:pg16
+```
+
+For development with SQLite:
+
+```python
+from agno.db.sqlite import SqliteDb
+
+db = SqliteDb(db_file="agno.db")
+```
+
+## Step 3: Run Your AgentOS
+
+Start the server:
+
+```bash
+python basic.py
+```
+
+You should see output like:
+
+```
+╭─────────────────────────────────────────────────╮
+│ AgentOS Started                                 │
+│ ID: basic-agent-os                              │
+│ Server: http://localhost:7777                   │
+│ Docs: http://localhost:7777/docs                │
+╰─────────────────────────────────────────────────╯
+```
+
+## Step 4: Test Your Agent
+
+<Steps>
+  <Step title="View the interactive docs">
+    Open http://localhost:7777/docs in your browser to see the auto-generated API documentation.
+  </Step>
+  
+  <Step title="Check the configuration">
+    Visit http://localhost:7777/config to see your AgentOS configuration:
+    
+    ```json
+    {
+      "id": "basic-agent-os",
+      "description": "My first AgentOS application",
+      "agents": [
+        {
+          "id": "basic-agent",
+          "name": "Basic Agent"
+        }
+      ]
+    }
+    ```
+  </Step>
+  
+  <Step title="List available agents">
+    ```bash
+    curl http://localhost:7777/agents
+    ```
+  </Step>
+  
+  <Step title="Run your agent">
+    ```bash
+    curl -X POST http://localhost:7777/agents/basic-agent/runs \
+      -F "message=Hello! What can you help me with?"
+    ```
+  </Step>
+</Steps>
+
+## Adding More Capabilities
+
+### Add Tools
+
+Enhance your agent with tools:
+
+```python
+from agno.tools.websearch import WebSearchTools
+from agno.tools.mcp import MCPTools
+
+agent = Agent(
+    name="Research Agent",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[
+        WebSearchTools(),
+        MCPTools(url="https://docs.agno.com/mcp"),
+    ],
+    db=db,
+)
+```
+
+### Add Knowledge Base
+
+Integrate a knowledge base with vector search:
+
+```python
+from agno.knowledge import Knowledge
+from agno.vectordb.pgvector import PgVector
+
+vector_db = PgVector(
+    db_url="postgresql+psycopg://ai:ai@localhost:5532/ai",
+    table_name="agno_docs",
+)
+
+knowledge = Knowledge(
+    name="Agno Docs",
+    contents_db=db,
+    vector_db=vector_db,
+)
+
+agent = Agent(
+    name="Agno Agent",
+    knowledge=knowledge,
+    db=db,
+)
+```
+
+### Create a Team
+
+Combine multiple agents into a team:
+
+```python
+from agno.team import Team
+
+researcher = Agent(name="Researcher", tools=[WebSearchTools()])
+writer = Agent(name="Writer")
+
+team = Team(
+    id="research-team",
+    name="Research Team",
+    model=OpenAIChat(id="gpt-4o"),
+    members=[researcher, writer],
+    db=db,
+    update_memory_on_run=True,
+)
+
+agent_os = AgentOS(
+    agents=[researcher, writer],
+    teams=[team],
+)
+```
+
+### Build a Workflow
+
+Orchestrate multi-step processes:
+
+```python
+from agno.workflow import Workflow
+from agno.workflow.step import Step
+
+workflow = Workflow(
+    id="content-workflow",
+    name="Content Creation Workflow",
+    db=db,
+    steps=[
+        Step(
+            name="research",
+            description="Research the topic",
+            agent=researcher,
+        ),
+        Step(
+            name="write",
+            description="Write the content",
+            agent=writer,
+        ),
+    ],
+)
+
+agent_os = AgentOS(workflows=[workflow])
+```
+
+## Configuration Options
+
+AgentOS provides extensive configuration options:
+
+<CodeGroup>
+```python Security
+agent_os = AgentOS(
+    agents=[agent],
+    authorization=True,
+    authorization_config=AuthorizationConfig(
+        verification_keys=["your-public-key"],
+        algorithm="RS256",
+        verify_audience=True,
+    ),
+    cors_allowed_origins=["https://yourdomain.com"],
+)
+```
+
+```python Monitoring
+agent_os = AgentOS(
+    agents=[agent],
+    tracing=True,  # Enable OpenTelemetry tracing
+    telemetry=True,  # Enable usage telemetry
+)
+```
+
+```python Performance
+agent_os = AgentOS(
+    agents=[agent],
+    auto_provision_dbs=True,  # Auto-create tables
+    run_hooks_in_background=True,  # Non-blocking hooks
+)
+```
+
+```python Scheduler
+agent_os = AgentOS(
+    agents=[agent],
+    scheduler=True,  # Enable cron scheduler
+    scheduler_poll_interval=15,  # Poll every 15 seconds
+    internal_service_token="your-secret-token",
+)
+```
+</CodeGroup>
+
+## Working with Sessions
+
+AgentOS automatically manages sessions for conversation continuity:
+
+```python
+# First message creates a session
+response = agent.run(
+    "What's the weather like?",
+    session_id="user-123-session",
+    user_id="user-123",
+)
+
+# Follow-up message uses the same session
+response = agent.run(
+    "How about tomorrow?",
+    session_id="user-123-session",
+    user_id="user-123",
+)
+```
+
+Retrieve session history:
+
+```bash
+curl http://localhost:7777/sessions?user_id=user-123
+```
+
+## Using Custom FastAPI App
+
+Integrate AgentOS with an existing FastAPI application:
+
+```python
+from fastapi import FastAPI
+
+# Create your custom app
+app = FastAPI(title="My Custom App")
+
+# Add custom routes
+@app.get("/custom")
+async def custom_endpoint():
+    return {"message": "Custom endpoint"}
+
+# Create AgentOS with base_app
+agent_os = AgentOS(
+    agents=[agent],
+    base_app=app,
+    on_route_conflict="preserve_agentos",  # or "preserve_base_app" or "error"
+)
+
+# AgentOS adds its routes to your app
+app = agent_os.get_app()
+```
+
+## Environment Variables
+
+Configure AgentOS via environment variables:
+
+```bash
+# Security
+export OS_SECURITY_KEY="your-secret-key"
+export JWT_VERIFICATION_KEY="your-jwt-key"
+
+# Database
+export POSTGRES_DB_URL="postgresql+psycopg://user:pass@host/db"
+
+# API Keys
+export OPENAI_API_KEY="sk-..."
+
+# Runtime
+export AGNO_API_RUNTIME="production"  # or "stg"
+```
+
+## Testing Your AgentOS
+
+<CodeGroup>
+```python Python Client
+import requests
+
+response = requests.post(
+    "http://localhost:7777/agents/basic-agent/runs",
+    files={"message": (None, "Hello, agent!")}
+)
+
+print(response.json())
+```
+
+```bash cURL
+curl -X POST http://localhost:7777/agents/basic-agent/runs \
+  -F "message=Hello, agent!" \
+  -F "session_id=test-session" \
+  -F "user_id=test-user"
+```
+
+```javascript JavaScript
+const formData = new FormData();
+formData.append('message', 'Hello, agent!');
+formData.append('session_id', 'test-session');
+
+const response = await fetch('http://localhost:7777/agents/basic-agent/runs', {
+  method: 'POST',
+  body: formData
+});
+
+const data = await response.json();
+console.log(data);
+```
+</CodeGroup>
+
+## Common Patterns
+
+### Multiple Databases
+
+```python
+postgres_db = PostgresDb(db_url="postgresql://...")
+sqlite_db = SqliteDb(db_file="local.db")
+
+agent1 = Agent(name="Agent 1", db=postgres_db)
+agent2 = Agent(name="Agent 2", db=sqlite_db)
+
+# AgentOS manages both databases
+agent_os = AgentOS(agents=[agent1, agent2])
+```
+
+### Shared Database with Different Tables
+
+```python
+db1 = PostgresDb(
+    id="shared-db",
+    db_url="postgresql://...",
+    session_table_name="agent1_sessions",
+)
+
+db2 = PostgresDb(
+    id="shared-db",
+    db_url="postgresql://...",
+    session_table_name="agent2_sessions",
+)
+
+agent1 = Agent(name="Agent 1", db=db1)
+agent2 = Agent(name="Agent 2", db=db2)
+```
+
+### Registry for Dynamic Components
+
+```python
+from agno.registry import Registry
+
+registry = Registry()
+registry.agents.append(agent1)
+registry.teams.append(team1)
+
+agent_os = AgentOS(
+    db=db,
+    registry=registry,  # Enables dynamic loading
+)
+```
+
+## Troubleshooting
+
+<Warning>
+Common issues and solutions:
+</Warning>
+
+**Database Connection Errors**
+- Verify database is running: `docker ps`
+- Check connection string format
+- Ensure database user has CREATE TABLE permissions
+
+**Port Already in Use**
+```bash
+# Find process using port 7777
+lsof -i :7777
+
+# Use a different port
+agent_os.serve(app="basic:app", port=8000)
+```
+
+**Import Errors**
+```bash
+# Ensure all dependencies are installed
+pip install -U agno[all] fastapi uvicorn
+```
+
+**Agent Not Found**
+- Check agent ID matches the route: `/agents/{agent_id}/runs`
+- View available agents: `GET /agents`
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deployment Guide" icon="server" href="/agent-os/deployment">
+    Learn how to deploy AgentOS to production
+  </Card>
+  <Card title="Authentication" icon="shield" href="/agent-os/authentication">
+    Secure your AgentOS with JWT and RBAC
+  </Card>
+  <Card title="API Reference" icon="book" href="/agent-os/api-reference">
+    Complete API endpoint documentation
+  </Card>
+  <Card title="Cookbook Examples" icon="code">
+    Explore advanced patterns in the cookbook
+  </Card>
+</CardGroup>

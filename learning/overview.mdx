@@ -1,0 +1,205 @@
+---
+title: Learning Overview
+description: Give your agents memory and the ability to learn from interactions
+---
+
+The Learning system in Agno enables agents to remember users, accumulate knowledge, and improve over time. The `LearningMachine` coordinates multiple memory stores to provide context-aware, personalized interactions.
+
+## What is LearningMachine?
+
+LearningMachine is a unified learning system that gives agents the ability to:
+
+- Remember user preferences and profiles
+- Track conversation context across sessions
+- Store facts about external entities (companies, projects, people)
+- Accumulate reusable insights and patterns
+- Log decisions for auditing and improvement
+
+## Core Components
+
+The learning system consists of multiple specialized stores:
+
+<CardGroup cols={2}>
+  <Card title="User Profile" icon="user">
+    Structured profile fields (name, preferences) stored by `user_id`
+  </Card>
+  <Card title="User Memory" icon="brain">
+    Unstructured observations about users that persist across sessions
+  </Card>
+  <Card title="Session Context" icon="message">
+    What's happened in the current session, goals, and progress
+  </Card>
+  <Card title="Entity Memory" icon="database">
+    Facts about external entities with semantic and episodic memory
+  </Card>
+  <Card title="Learned Knowledge" icon="lightbulb">
+    Reusable insights shared across users and agents
+  </Card>
+  <Card title="Decision Log" icon="list-check">
+    Record of agent decisions with reasoning and context
+  </Card>
+</CardGroup>
+
+## Learning Modes
+
+Each learning store supports different modes of operation:
+
+```python
+from agno.learn import LearningMode
+
+class LearningMode(Enum):
+    ALWAYS = "always"      # Automatic extraction after each response
+    AGENTIC = "agentic"    # Agent decides when to learn via tools
+    PROPOSE = "propose"    # Agent proposes, human confirms
+    HITL = "hitl"          # Reserved for future human-in-the-loop
+```
+
+### ALWAYS Mode
+Memories are extracted automatically after each conversation:
+
+```python
+from agno.agent import Agent
+from agno.learn import LearningMachine, LearningMode, UserMemoryConfig
+from agno.db.sqlite import SqliteDb
+
+agent = Agent(
+    model=OpenAIResponses(id="gpt-5.2"),
+    db=SqliteDb(db_file="tmp/agent.db"),
+    learning=LearningMachine(
+        user_memory=UserMemoryConfig(mode=LearningMode.ALWAYS),
+    ),
+)
+
+# Agent automatically learns from each interaction
+agent.print_response(
+    "I prefer concise responses",
+    user_id="user_123",
+)
+```
+
+### AGENTIC Mode
+Agent uses tools to decide when and what to learn:
+
+```python
+from agno.learn import LearnedKnowledgeConfig
+
+agent = Agent(
+    model=OpenAIResponses(id="gpt-5.2"),
+    db=SqliteDb(db_file="tmp/agent.db"),
+    learning=LearningMachine(
+        learned_knowledge=LearnedKnowledgeConfig(
+            mode=LearningMode.AGENTIC,
+        ),
+    ),
+)
+
+# Agent has tools like save_learning() and search_learnings()
+# that it can call when appropriate
+```
+
+## Quick Start
+
+Here's a complete example using the LearningMachine:
+
+```python
+from agno.agent import Agent
+from agno.db.sqlite import SqliteDb
+from agno.learn import LearningMachine, LearningMode, UserProfileConfig
+from agno.models.openai import OpenAIResponses
+
+# Create agent with learning
+agent = Agent(
+    name="Learning Agent",
+    model=OpenAIResponses(id="gpt-5.2"),
+    db=SqliteDb(db_file="tmp/agents.db"),
+    learning=LearningMachine(
+        user_profile=UserProfileConfig(mode=LearningMode.ALWAYS),
+    ),
+    markdown=True,
+)
+
+# First interaction - agent learns about the user
+user_id = "learning-demo-user"
+agent.print_response(
+    "My name is Alex, and I prefer concise responses.",
+    user_id=user_id,
+    session_id="learning_session_1",
+)
+
+# Later interaction - agent recalls what it learned
+agent.print_response(
+    "What do you remember about me?",
+    user_id=user_id,
+    session_id="learning_session_2",
+)
+# Agent will recall: "Your name is Alex, you prefer concise responses"
+```
+
+## How Learning Works
+
+The learning lifecycle has three main phases:
+
+<Steps>
+  <Step title="Recall">
+    Before generating a response, the agent retrieves relevant context:
+    ```python
+    # Automatically called before agent.run()
+    context = learning.build_context(
+        user_id="user_123",
+        session_id="session_abc",
+        message="current user message",
+    )
+    # Context is injected into the agent's system prompt
+    ```
+  </Step>
+
+  <Step title="Response">
+    Agent generates response with learned context in its system prompt
+  </Step>
+
+  <Step title="Process">
+    After the response, extract and save new learnings:
+    ```python
+    # Automatically called after agent.run() for ALWAYS mode stores
+    learning.process(
+        messages=conversation_messages,
+        user_id="user_123",
+        session_id="session_abc",
+    )
+    ```
+  </Step>
+</Steps>
+
+## Benefits
+
+<CardGroup cols={2}>
+  <Card title="Personalization" icon="user-check">
+    Remember each user's preferences, communication style, and history
+  </Card>
+  <Card title="Context Continuity" icon="arrows-rotate">
+    Maintain state across long conversations and multiple sessions
+  </Card>
+  <Card title="Knowledge Accumulation" icon="brain">
+    Build a knowledge base that improves all agents over time
+  </Card>
+  <Card title="Decision Tracking" icon="clipboard-list">
+    Audit and analyze agent decisions for compliance and improvement
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Self-Improvement" icon="arrow-trend-up" href="/learning/self-improvement">
+    Learn how agents can improve their own instructions based on feedback
+  </Card>
+  <Card title="Reasoning" icon="brain" href="/reasoning/overview">
+    Add multi-step reasoning capabilities to your agents
+  </Card>
+  <Card title="Guardrails" icon="shield-halved" href="/guardrails/overview">
+    Protect your agents with input validation and safety checks
+  </Card>
+  <Card title="Evaluations" icon="chart-line" href="/evals/overview">
+    Measure and improve agent performance
+  </Card>
+</CardGroup>

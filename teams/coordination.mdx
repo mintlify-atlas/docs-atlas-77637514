@@ -1,0 +1,40 @@
+---
+title: "Team coordination"
+description: "How agents work together in teams"
+---
+
+Teams coordinate agents through a coordinator agent that decides which team members to invoke.
+
+## Basic coordination
+
+```python
+from agno.team import Team
+
+team = Team(
+    agents=[agent1, agent2, agent3],
+    instructions="Coordinate these agents to complete complex tasks"
+)
+```
+
+## Sharing context
+
+```python
+team = Team(
+    agents=[researcher, writer],
+    share_member_interactions=True  # Agents see each other's work
+)
+```
+
+## Team with memory
+
+```python
+from agno.db.postgres import PostgresDb
+
+team = Team(
+    agents=[agent1, agent2],
+    db=PostgresDb(),
+    add_history_to_context=True
+)
+```
+
+See [API reference](/api/team) for complete documentation.

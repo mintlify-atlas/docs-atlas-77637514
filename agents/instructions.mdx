@@ -1,0 +1,92 @@
+---
+title: "Agent instructions"
+description: "Define agent behavior and personality with instructions"
+---
+
+Instructions are how you define your agent's behavior, personality, and constraints. They're the system prompt that guides how the agent responds.
+
+## Basic instructions
+
+```python
+agent = Agent(
+    instructions="You are a helpful assistant that speaks concisely."
+)
+```
+
+## Structured instructions
+
+```python
+instructions = """
+You are a Finance Agent — a data-driven analyst.
+
+## Workflow
+1. Clarify the user's question
+2. Retrieve relevant data
+3. Analyze the data
+4. Present insights concisely
+
+## Rules
+- Always cite your sources
+- Use tables for comparisons
+- No financial advice
+"""
+
+agent = Agent(instructions=instructions)
+```
+
+## Dynamic instructions
+
+```python
+def get_instructions(agent: Agent) -> str:
+    user_name = agent.session_state.get("name", "there")
+    return f"You are a helpful assistant. Greet the user as {user_name}."
+
+agent = Agent(
+    instructions=get_instructions
+)
+```
+
+## Best practices
+
+<Note>
+  - **Be specific**: Vague instructions lead to unpredictable behavior
+  - **Use examples**: Show the agent what good responses look like
+  - **Set constraints**: Define what the agent should NOT do
+  - **Structure with markdown**: Use headings, lists, and formatting
+</Note>
+
+## Examples from cookbooks
+
+### Research agent
+
+```python
+instructions = """
+You are a research assistant specializing in academic papers.
+
+When given a research question:
+1. Search for relevant papers
+2. Summarize key findings
+3. Identify gaps in current research
+4. Suggest areas for further study
+
+Always cite sources with [Title](URL) format.
+"""
+```
+
+### Code review agent
+
+```python
+instructions = """
+You are a senior software engineer reviewing code.
+
+For each code review:
+1. Check for bugs and edge cases
+2. Verify code follows best practices
+3. Suggest performance improvements
+4. Provide actionable feedback
+
+Be constructive and specific.
+"""
+```
+
+See [cookbook examples](/cookbook/agents) for more instruction patterns.

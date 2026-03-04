@@ -1,0 +1,49 @@
+---
+title: "Teams overview"
+description: "Coordinate multiple agents for complex tasks"
+---
+
+Teams enable multiple specialized agents to collaborate on complex tasks. Each agent can have different tools, knowledge, and instructions.
+
+## What is a team?
+
+A team is a collection of agents that work together:
+- Each agent has a specific role and expertise
+- A coordinator decides which agent(s) to invoke
+- Agents can share context and build on each other's work
+
+## Quick example
+
+```python
+from agno.agent import Agent
+from agno.team import Team
+from agno.models.anthropic import Claude
+
+# Create specialized agents
+researcher = Agent(
+    name="Researcher",
+    role="Research papers and find information",
+    model=Claude(id="claude-sonnet-4-6"),
+    tools=[DuckDuckGoTools()]
+)
+
+writer = Agent(
+    name="Writer",
+    role="Write clear technical documentation",
+    model=Claude(id="claude-sonnet-4-6")
+)
+
+# Create a team
+team = Team(
+    agents=[researcher, writer]
+)
+
+# Run the team
+response = team.run(
+    "Research quantum computing and write a summary"
+)
+```
+
+## Team modes
+
+See [Team modes](/teams/modes) for different coordination strategies.

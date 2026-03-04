@@ -1,0 +1,148 @@
+---
+title: Memory Overview
+description: Learn how to use persistent memory in Agno to create personalized AI agents that remember user preferences and information across conversations
+---
+
+Agno provides a powerful memory system that enables agents to remember information about users across sessions. This allows you to build personalized AI experiences that improve over time.
+
+## What is Memory?
+
+Memory in Agno allows agents to:
+
+- Store and retrieve user preferences and personal information
+- Maintain context across multiple conversations and sessions
+- Build personalized experiences based on past interactions
+- Share memories across multiple agents working with the same user
+
+## Key Components
+
+### MemoryManager
+
+The `MemoryManager` is responsible for creating, updating, and retrieving user memories. It uses an LLM to intelligently extract and manage memories from conversations.
+
+```python
+from agno.memory import MemoryManager
+from agno.db.postgres import PostgresDb
+
+memory_manager = MemoryManager(
+    db=PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:5532/ai")
+)
+```
+
+### UserMemory
+
+`UserMemory` objects represent individual memories stored in the database:
+
+```python
+from agno.db.schemas import UserMemory
+
+memory = UserMemory(
+    memory="User's name is John Doe",
+    topics=["name"],
+    user_id="john_doe@example.com"
+)
+```
+
+## Memory Workflow
+
+<Steps>
+
+### Enable Memory on Agent
+
+Set `update_memory_on_run=True` to automatically create memories from conversations:
+
+```python
+from agno.agent import Agent
+from agno.db.postgres import PostgresDb
+
+agent = Agent(
+    db=PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:5532/ai"),
+    update_memory_on_run=True,
+)
+```
+
+### Interact with Users
+
+As users interact with your agent, memories are automatically created:
+
+```python
+agent.print_response(
+    "My name is John Doe and I like hiking in the mountains",
+    user_id="john_doe@example.com"
+)
+```
+
+### Retrieve Memories
+
+Memories are automatically added to the agent's context in future conversations:
+
+```python
+# Agent will remember the user's name and hobbies
+agent.print_response(
+    "What are my hobbies?",
+    user_id="john_doe@example.com"
+)
+```
+
+</Steps>
+
+## Memory Storage
+
+Memories are stored in a database and associated with:
+
+- **user_id**: Identifies which user the memory belongs to
+- **agent_id**: Which agent created the memory (optional)
+- **team_id**: Which team created the memory (optional)
+- **topics**: Categories or tags for the memory
+- **updated_at**: Timestamp of the last update
+
+## Multi-User Support
+
+Agno's memory system supports multiple users, with memories isolated by `user_id`:
+
+```python
+# User 1's memories
+agent.print_response(
+    "My name is Alice",
+    user_id="alice@example.com"
+)
+
+# User 2's memories (completely separate)
+agent.print_response(
+    "My name is Bob",
+    user_id="bob@example.com"
+)
+```
+
+## Memory Optimization
+
+As conversations grow, you may need to optimize memories to reduce token usage. Agno provides optimization strategies:
+
+```python
+from agno.memory.strategies.types import MemoryOptimizationStrategyType
+
+memory_manager.optimize_memories(
+    user_id="john_doe@example.com",
+    strategy=MemoryOptimizationStrategyType.SUMMARIZE,
+    apply=True
+)
+```
+
+See [User Memories](/memory/user-memories) for detailed usage and [Session State](/memory/session-state) for managing conversation history.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="User Memories" icon="brain" href="/memory/user-memories">
+    Learn how to create, retrieve, and manage user memories
+  </Card>
+  <Card title="Session State" icon="messages" href="/memory/session-state">
+    Manage conversation history and session summaries
+  </Card>
+  <Card title="Storage Overview" icon="database" href="/storage/overview">
+    Choose the right database for your application
+  </Card>
+  <Card title="Database Adapters" icon="plug" href="/storage/databases">
+    Configure PostgreSQL, MongoDB, Redis, and more
+  </Card>
+</CardGroup>

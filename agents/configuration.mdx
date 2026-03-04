@@ -1,0 +1,110 @@
+---
+title: "Agent configuration"
+description: "Configure agents with models, tools, memory, and more"
+---
+
+Agents in Agno are highly configurable. This guide covers the most important configuration options.
+
+## Basic configuration
+
+```python
+from agno.agent import Agent
+from agno.models.anthropic import Claude
+
+agent = Agent(
+    name="My Agent",
+    model=Claude(id="claude-sonnet-4-6"),
+    instructions="You are a helpful assistant."
+)
+```
+
+## Model configuration
+
+```python
+from agno.models.openai import OpenAIResponses
+
+agent = Agent(
+    model=OpenAIResponses(
+        id="gpt-4.5",
+        temperature=0.7,
+        max_tokens=1000
+    )
+)
+```
+
+## Tools configuration
+
+```python
+from agno.tools.duckduckgo import DuckDuckGoTools
+from agno.tools.yfinance import YFinanceTools
+
+agent = Agent(
+    tools=[
+        DuckDuckGoTools(),
+        YFinanceTools(all=True)
+    ],
+    tool_choice="auto",  # "auto", "none", or specific tool
+    tool_call_limit=10
+)
+```
+
+## Memory configuration
+
+```python
+from agno.memory import MemoryManager
+from agno.db.postgres import PostgresDb
+
+agent = Agent(
+    memory_manager=MemoryManager(db=PostgresDb()),
+    update_memory_on_run=True,
+    add_memories_to_context=True
+)
+```
+
+## History configuration
+
+```python
+agent = Agent(
+    add_history_to_context=True,
+    num_history_runs=10,
+    num_history_messages=50
+)
+```
+
+## Knowledge configuration
+
+```python
+from agno.knowledge.pdf import PDFKnowledge
+from agno.vectordb.pgvector import PgVector
+
+agent = Agent(
+    knowledge=PDFKnowledge(
+        path="docs",
+        vector_db=PgVector()
+    ),
+    add_knowledge_to_context=True,
+    search_knowledge=True
+)
+```
+
+## Session configuration
+
+```python
+agent = Agent(
+    session_id="user-123-session-1",
+    session_state={"preferences": {}},
+    add_session_state_to_context=True
+)
+```
+
+## Storage configuration
+
+```python
+from agno.db.sqlite import SqliteDb
+
+agent = Agent(
+    db=SqliteDb(db_file="agents.db")
+)
+```
+
+For complete API reference, see [Agent API documentation](/api/agent).

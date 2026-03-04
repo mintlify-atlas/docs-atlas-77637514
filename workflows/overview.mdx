@@ -1,0 +1,42 @@
+---
+title: "Workflows overview"
+description: "Create sequential and parallel execution pipelines"
+---
+
+Workflows enable deterministic, multi-step AI pipelines. Unlike teams where agents decide dynamically, workflows follow a pre-defined sequence.
+
+## What is a workflow?
+
+A workflow is a structured sequence of steps:
+- Each step is an agent, team, or function
+- Steps execute in order
+- Output from one step can be input to the next
+- Support for conditionals, loops, and parallel execution
+
+## Quick example
+
+```python
+from agno.workflow import Workflow, Step
+
+researcher = Agent(name="Researcher", tools=[DuckDuckGoTools()])
+writer = Agent(name="Writer")
+editor = Agent(name="Editor")
+
+workflow = Workflow(
+    steps=[
+        Step(agent=researcher, name="Research"),
+        Step(agent=writer, name="Write"),
+        Step(agent=editor, name="Edit")
+    ]
+)
+
+result = workflow.run("Write an article about AI safety")
+```
+
+## When to use workflows
+
+- **Content pipelines**: Research → Write → Edit → Publish
+- **Data processing**: Extract → Transform → Load
+- **Review processes**: Create → Review → Approve
+
+See [cookbook examples](/cookbook/workflows) for complete patterns.

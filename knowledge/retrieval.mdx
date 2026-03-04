@@ -1,0 +1,54 @@
+---
+title: "Document retrieval"
+description: "Search and retrieve relevant documents"
+---
+
+Retrieval finds the most relevant documents for a query.
+
+## Basic retrieval
+
+```python
+agent = Agent(
+    knowledge=knowledge,
+    search_knowledge=True,  # Enable agentic RAG
+    add_knowledge_to_context=True
+)
+```
+
+## Hybrid search
+
+Combines vector and keyword search:
+
+```python
+from agno.knowledge.pdf import PDFKnowledge
+
+knowledge = PDFKnowledge(
+    path="docs/",
+    vector_db=vector_db,
+    use_hybrid_search=True
+)
+```
+
+## Custom retrieval
+
+```python
+def custom_retriever(agent, query, num_documents=5):
+    # Custom retrieval logic
+    return documents
+
+agent = Agent(
+    knowledge=knowledge,
+    knowledge_retriever=custom_retriever
+)
+```
+
+## Filters
+
+```python
+agent = Agent(
+    knowledge=knowledge,
+    knowledge_filters={"category": "technical"}
+)
+```
+
+See [cookbook examples](/cookbook/agents) for complete patterns.

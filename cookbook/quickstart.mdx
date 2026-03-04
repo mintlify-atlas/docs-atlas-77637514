@@ -1,0 +1,646 @@
+---
+title: Quickstart Examples
+description: Get started with Agno through 12 essential examples covering agents, tools, memory, workflows, and teams.
+---
+
+Welcome to the Agno quickstart guide! These examples will get you up and running with the core concepts of the framework. Each example builds on the previous one, showing you how to create increasingly powerful AI agents.
+
+## Overview
+
+The quickstart examples cover:
+
+- **Basic Agents**: Create your first agent with tools
+- **Memory & Storage**: Give your agent persistent memory
+- **Structured Output**: Get typed, predictable responses
+- **State Management**: Manage stateful interactions
+- **Knowledge**: Search over documents and data
+- **Teams & Workflows**: Coordinate multiple agents
+- **Advanced Features**: Guardrails, learning, and human-in-the-loop
+
+---
+
+## 1. Agent with Tools
+
+Your first Agno agent: a data-driven financial analyst that retrieves market data and delivers insights.
+
+<Note>
+This example shows how to give an agent tools to interact with external data sources.
+</Note>
+
+```python agent_with_tools.py
+from agno.agent import Agent
+from agno.models.google import Gemini
+from agno.tools.yfinance import YFinanceTools
+
+instructions = """
+You are a Finance Agent — a data-driven analyst who retrieves market data,
+computes key ratios, and produces concise, decision-ready insights.
+
+## Workflow
+
+1. Clarify: Identify tickers from company names (e.g., Apple → AAPL)
+2. Retrieve: Fetch price, change %, market cap, P/E, EPS, 52-week range
+3. Analyze: Compute ratios, identify key drivers and risks
+4. Present: Lead with a one-line summary, use tables for comparisons
+"""
+
+agent_with_tools = Agent(
+    name="Agent with Tools",
+    model=Gemini(id="gemini-3-flash-preview"),
+    instructions=instructions,
+    tools=[YFinanceTools(all=True)],
+    add_datetime_to_context=True,
+    markdown=True,
+)
+
+if __name__ == "__main__":
+    agent_with_tools.print_response(
+        "Give me a quick investment brief on NVIDIA", stream=True
+    )
+```
+
+<Tip>
+**Try these prompts:**
+- "What's Apple's current valuation? Is it expensive?"
+- "Compare Google and Microsoft as investments"
+- "Show me key metrics for the top AI stocks: NVDA, AMD, GOOGL, MSFT"
+</Tip>
+
+---
+
+## 2. Agent with Storage
+
+Add persistent storage so your agent remembers conversations across runs.
+
+```python agent_with_storage.py
+from agno.agent import Agent
+from agno.db.sqlite import SqliteDb
+from agno.models.google import Gemini
+from agno.tools.yfinance import YFinanceTools
+
+# Storage configuration
+agent_db = SqliteDb(db_file="tmp/agents.db")
+
+agent_with_storage = Agent(
+    name="Agent with Storage",
+    model=Gemini(id="gemini-3-flash-preview"),
+    instructions=instructions,
+    tools=[YFinanceTools(all=True)],
+    db=agent_db,
+    add_datetime_to_context=True,
+    add_history_to_context=True,
+    num_history_runs=5,
+    markdown=True,
+)
+
+if __name__ == "__main__":
+    session_id = "finance-agent-session"
+    
+    # Turn 1: Analyze a stock
+    agent_with_storage.print_response(
+        "Give me a quick investment brief on NVIDIA",
+        session_id=session_id,
+        stream=True,
+    )
+    
+    # Turn 2: Compare — the agent remembers NVDA from turn 1
+    agent_with_storage.print_response(
+        "Compare that to Tesla",
+        session_id=session_id,
+        stream=True,
+    )
+```
+
+<Note>
+**Key concepts:**
+- **Run**: Each time you call the agent
+- **Session**: A conversation thread (identified by `session_id`)
+- Same `session_id` = continuous conversation, even across runs
+</Note>
+
+---
+
+## 3. Agent with Memory
+
+Memory persists user preferences across all conversations.
+
+```python agent_with_memory.py
+from agno.agent import Agent
+from agno.db.sqlite import SqliteDb
+from agno.memory import MemoryManager
+from agno.models.google import Gemini
+from agno.tools.yfinance import YFinanceTools
+
+agent_db = SqliteDb(db_file="tmp/agents.db")
+
+memory_manager = MemoryManager(
+    model=Gemini(id="gemini-3-flash-preview"),
+    db=agent_db,
+    additional_instructions="""
+    Capture the user's favorite stocks, their risk tolerance, and their investment goals.
+    """,
+)
+
+user_id = "investor@example.com"
+
+agent_with_memory = Agent(
+    name="Agent with Memory",
+    model=Gemini(id="gemini-3-flash-preview"),
+    instructions=instructions,
+    tools=[YFinanceTools(all=True)],
+    db=agent_db,
+    memory_manager=memory_manager,
+    enable_agentic_memory=True,
+    add_datetime_to_context=True,
+    add_history_to_context=True,
+    num_history_runs=5,
+    markdown=True,
+)
+
+if __name__ == "__main__":
+    # Tell the agent about yourself
+    agent_with_memory.print_response(
+        "I'm interested in AI and semiconductor stocks. My risk tolerance is moderate.",
+        user_id=user_id,
+        stream=True,
+    )
+    
+    # The agent now knows your preferences
+    agent_with_memory.print_response(
+        "What stocks would you recommend for me?",
+        user_id=user_id,
+        stream=True,
+    )
+```
+
+<Accordion title="Memory vs Storage">
+**Storage**: "What did we discuss?" (conversation history)
+
+**Memory**: "What do you know about me?" (user preferences)
+
+Memory persists across sessions and is linked to a specific `user_id`.
+</Accordion>
+
+---
+
+## 4. Agent with Structured Output
+
+Get structured, typed responses using Pydantic models.
+
+```python agent_with_structured_output.py
+from typing import List, Optional
+from agno.agent import Agent
+from agno.models.google import Gemini
+from agno.tools.yfinance import YFinanceTools
+from pydantic import BaseModel, Field
+
+class StockAnalysis(BaseModel):
+    """Structured output for stock analysis."""
+    ticker: str = Field(..., description="Stock ticker symbol (e.g., NVDA)")
+    company_name: str = Field(..., description="Full company name")
+    current_price: float = Field(..., description="Current stock price in USD")
+    market_cap: str = Field(..., description="Market cap (e.g., '3.2T' or '150B')")
+    pe_ratio: Optional[float] = Field(None, description="P/E ratio, if available")
+    week_52_high: float = Field(..., description="52-week high price")
+    week_52_low: float = Field(..., description="52-week low price")
+    summary: str = Field(..., description="One-line summary of the stock")
+    key_drivers: List[str] = Field(..., description="2-3 key growth drivers")
+    key_risks: List[str] = Field(..., description="2-3 key risks")
+    recommendation: str = Field(
+        ..., description="One of: Strong Buy, Buy, Hold, Sell, Strong Sell"
+    )
+
+agent_with_structured_output = Agent(
+    name="Agent with Structured Output",
+    model=Gemini(id="gemini-3-flash-preview"),
+    instructions=instructions,
+    tools=[YFinanceTools(all=True)],
+    output_schema=StockAnalysis,
+    add_datetime_to_context=True,
+    markdown=True,
+)
+
+if __name__ == "__main__":
+    response = agent_with_structured_output.run("Analyze NVIDIA")
+    analysis: StockAnalysis = response.content
+    
+    print(f"Stock: {analysis.company_name} ({analysis.ticker})")
+    print(f"Price: ${analysis.current_price:.2f}")
+    print(f"Recommendation: {analysis.recommendation}")
+```
+
+<Tip>
+**Perfect for:**
+- Building UIs with predictable data shapes
+- Storing in databases
+- Building pipelines where agents communicate via typed data
+</Tip>
+
+---
+
+## 5. Agent with State Management
+
+Manage persistent state like watchlists, counters, or flags.
+
+```python agent_with_state.py
+from agno.agent import Agent
+from agno.run import RunContext
+from agno.models.google import Gemini
+from agno.tools.yfinance import YFinanceTools
+
+def add_to_watchlist(run_context: RunContext, ticker: str) -> str:
+    """Add a stock ticker to the watchlist."""
+    ticker = ticker.upper().strip()
+    watchlist = run_context.session_state.get("watchlist", [])
+    
+    if ticker in watchlist:
+        return f"{ticker} is already on your watchlist"
+    
+    watchlist.append(ticker)
+    run_context.session_state["watchlist"] = watchlist
+    return f"Added {ticker} to watchlist. Current watchlist: {', '.join(watchlist)}"
+
+instructions = """
+You are a Finance Agent that manages a stock watchlist.
+
+## Current Watchlist
+{watchlist}
+
+## Capabilities
+1. Manage watchlist: use add_to_watchlist and remove_from_watchlist tools
+2. Get stock data: use YFinance tools to fetch prices for watched stocks
+"""
+
+agent_with_state = Agent(
+    name="Agent with State Management",
+    model=Gemini(id="gemini-3-flash-preview"),
+    instructions=instructions,
+    tools=[add_to_watchlist, YFinanceTools(all=True)],
+    session_state={"watchlist": []},
+    add_session_state_to_context=True,
+    markdown=True,
+)
+
+if __name__ == "__main__":
+    agent_with_state.print_response(
+        "Add NVDA, AAPL, and GOOGL to my watchlist",
+        stream=True,
+    )
+    
+    agent_with_state.print_response(
+        "How are my watched stocks doing today?",
+        stream=True,
+    )
+```
+
+---
+
+## 6. Agent with Guardrails
+
+Validate and protect your agent with input guardrails.
+
+```python agent_with_guardrails.py
+from agno.agent import Agent
+from agno.guardrails import PIIDetectionGuardrail, PromptInjectionGuardrail
+from agno.models.google import Gemini
+
+agent_with_guardrails = Agent(
+    name="Agent with Guardrails",
+    model=Gemini(id="gemini-3-flash-preview"),
+    instructions=instructions,
+    tools=[YFinanceTools(all=True)],
+    pre_hooks=[
+        PIIDetectionGuardrail(),  # Block PII (SSN, credit cards, emails)
+        PromptInjectionGuardrail(),  # Block jailbreak attempts
+    ],
+    markdown=True,
+)
+
+if __name__ == "__main__":
+    # Normal request — works
+    agent_with_guardrails.print_response(
+        "What's a good P/E ratio for tech stocks?",
+        stream=True,
+    )
+    
+    # PII request — blocked
+    try:
+        agent_with_guardrails.print_response(
+            "My SSN is 123-45-6789, can you help?",
+            stream=True,
+        )
+    except InputCheckError as e:
+        print(f"Blocked: {e.message}")
+```
+
+---
+
+## 7. Typed Input and Output
+
+Define both input and output schemas for end-to-end type safety.
+
+```python typed_input_output.py
+from typing import Literal, Optional
+from pydantic import BaseModel, Field
+
+class AnalysisRequest(BaseModel):
+    """Structured input for requesting a stock analysis."""
+    ticker: str = Field(..., description="Stock ticker symbol")
+    analysis_type: Literal["quick", "deep"] = Field(default="quick")
+    include_risks: bool = Field(default=True)
+
+class StockAnalysis(BaseModel):
+    """Structured output for stock analysis."""
+    ticker: str
+    current_price: float
+    summary: str
+    recommendation: str
+
+agent = Agent(
+    name="Typed Agent",
+    model=Gemini(id="gemini-3-flash-preview"),
+    tools=[YFinanceTools(all=True)],
+    input_schema=AnalysisRequest,
+    output_schema=StockAnalysis,
+)
+
+# Pass input as dict or Pydantic model
+response = agent.run(
+    input={"ticker": "NVDA", "analysis_type": "deep", "include_risks": True}
+)
+analysis: StockAnalysis = response.content
+```
+
+---
+
+## 8. Search Over Knowledge
+
+Give your agent a searchable knowledge base.
+
+```python agent_with_knowledge.py
+from agno.agent import Agent
+from agno.knowledge.knowledge import Knowledge
+from agno.vectordb.chroma import ChromaDb
+from agno.knowledge.embedder.google import GeminiEmbedder
+from agno.vectordb.search import SearchType
+
+knowledge = Knowledge(
+    name="Agno Documentation",
+    vector_db=ChromaDb(
+        name="agno_docs",
+        collection="agno_docs",
+        path="tmp/chromadb",
+        persistent_client=True,
+        search_type=SearchType.hybrid,
+        embedder=GeminiEmbedder(id="gemini-embedding-001"),
+    ),
+    max_results=5,
+)
+
+agent_with_knowledge = Agent(
+    name="Agent with Knowledge",
+    model=Gemini(id="gemini-3-flash-preview"),
+    knowledge=knowledge,
+    search_knowledge=True,
+    markdown=True,
+)
+
+if __name__ == "__main__":
+    # Load documents into knowledge base
+    knowledge.insert(
+        name="Agno Introduction",
+        url="https://docs.agno.com/introduction.md"
+    )
+    
+    agent_with_knowledge.print_response(
+        "What is Agno?",
+        stream=True,
+    )
+```
+
+<Note>
+Hybrid search combines semantic similarity with keyword matching for better retrieval.
+</Note>
+
+---
+
+## 9. Custom Tools for Self-Learning
+
+Write custom tools to extend your agent's capabilities.
+
+```python custom_tools.py
+import json
+from datetime import datetime, timezone
+from agno.knowledge import Knowledge
+
+# Any function can become a tool
+def save_learning(title: str, learning: str) -> str:
+    """
+    Save a reusable insight to the knowledge base for future reference.
+    
+    Args:
+        title: Short descriptive title
+        learning: The insight to save — be specific and actionable
+    
+    Returns:
+        Confirmation message
+    """
+    payload = {
+        "title": title.strip(),
+        "learning": learning.strip(),
+        "saved_at": datetime.now(timezone.utc).isoformat(),
+    }
+    
+    learnings_kb.insert(
+        name=payload["title"],
+        text_content=json.dumps(payload, ensure_ascii=False),
+        skip_if_exists=True,
+    )
+    
+    return f"Saved: '{title}'"
+
+self_learning_agent = Agent(
+    name="Self-Learning Agent",
+    model=Gemini(id="gemini-3-flash-preview"),
+    tools=[
+        YFinanceTools(all=True),
+        save_learning,  # Your custom tool!
+    ],
+    knowledge=learnings_kb,
+    search_knowledge=True,
+)
+```
+
+<Tip>
+**Writing custom tools:**
+1. Define a function with type hints and a docstring
+2. The docstring tells the agent what the tool does
+3. Add it to the agent's `tools` list
+</Tip>
+
+---
+
+## 10. Human in the Loop
+
+Require user confirmation before executing sensitive actions.
+
+```python human_in_the_loop.py
+from agno.agent import Agent
+from agno.tools import tool
+
+@tool(requires_confirmation=True)
+def save_learning(title: str, learning: str) -> str:
+    """Save a learning - requires user confirmation."""
+    # Save logic here
+    return f"Saved: '{title}'"
+
+agent = Agent(
+    name="HITL Agent",
+    model=Gemini(id="gemini-3-flash-preview"),
+    tools=[save_learning],
+)
+
+if __name__ == "__main__":
+    run_response = agent.run(
+        "What's a healthy P/E ratio for tech stocks? Save that insight."
+    )
+    
+    # Handle confirmation requirements
+    if run_response.active_requirements:
+        for requirement in run_response.active_requirements:
+            if requirement.needs_confirmation:
+                print(f"Confirm: {requirement.tool_execution.tool_name}?")
+                choice = input("Approve? (y/n): ")
+                
+                if choice == "y":
+                    requirement.confirm()
+                else:
+                    requirement.reject()
+        
+        # Continue with user's decisions
+        run_response = agent.continue_run(
+            run_id=run_response.run_id,
+            requirements=run_response.requirements,
+        )
+```
+
+---
+
+## 11. Multi-Agent Team
+
+Create a team of agents with specialized roles.
+
+```python multi_agent_team.py
+from agno.agent import Agent
+from agno.team import Team
+from agno.models.google import Gemini
+from agno.tools.yfinance import YFinanceTools
+
+# Bull Agent — makes the case FOR investing
+bull_agent = Agent(
+    name="Bull Analyst",
+    role="Make the investment case FOR a stock",
+    model=Gemini(id="gemini-3-flash-preview"),
+    tools=[YFinanceTools(all=True)],
+    instructions="Find the positives: growth drivers, competitive advantages, strong financials.",
+)
+
+# Bear Agent — makes the case AGAINST investing
+bear_agent = Agent(
+    name="Bear Analyst",
+    role="Make the investment case AGAINST a stock",
+    model=Gemini(id="gemini-3-flash-preview"),
+    tools=[YFinanceTools(all=True)],
+    instructions="Find the risks: valuation concerns, competitive threats, weak spots.",
+)
+
+# Team Leader coordinates and synthesizes
+multi_agent_team = Team(
+    name="Investment Research Team",
+    model=Gemini(id="gemini-3-flash-preview"),
+    members=[bull_agent, bear_agent],
+    instructions="""
+    Send the stock to BOTH analysts, let each make their case independently,
+    then synthesize into a balanced recommendation.
+    """,
+    show_members_responses=True,
+    markdown=True,
+)
+
+if __name__ == "__main__":
+    multi_agent_team.print_response(
+        "Should I invest in NVIDIA (NVDA)?",
+        stream=True,
+    )
+```
+
+---
+
+## 12. Sequential Workflow
+
+Orchestrate a sequence of specialized agents.
+
+```python sequential_workflow.py
+from agno.agent import Agent
+from agno.workflow import Step, Workflow
+from agno.models.google import Gemini
+from agno.tools.yfinance import YFinanceTools
+
+# Step 1: Data Gatherer
+data_agent = Agent(
+    name="Data Gatherer",
+    model=Gemini(id="gemini-3-flash-preview"),
+    tools=[YFinanceTools(all=True)],
+    instructions="Fetch comprehensive market data. Don't analyze — just gather.",
+)
+
+# Step 2: Analyst
+analyst_agent = Agent(
+    name="Analyst",
+    model=Gemini(id="gemini-3-flash-preview"),
+    instructions="Interpret the metrics, identify strengths and weaknesses.",
+)
+
+# Step 3: Report Writer
+report_agent = Agent(
+    name="Report Writer",
+    model=Gemini(id="gemini-3-flash-preview"),
+    instructions="Synthesize into a concise investment brief. Max 200 words.",
+    markdown=True,
+)
+
+sequential_workflow = Workflow(
+    name="Stock Research Pipeline",
+    description="Data → Analysis → Report",
+    steps=[
+        Step(name="Data Gathering", agent=data_agent),
+        Step(name="Analysis", agent=analyst_agent),
+        Step(name="Report Writing", agent=report_agent),
+    ],
+)
+
+if __name__ == "__main__":
+    sequential_workflow.print_response(
+        "Analyze NVIDIA (NVDA) for investment",
+        stream=True,
+    )
+```
+
+<Accordion title="Workflow vs Team">
+**Workflow**: Explicit step order, predictable execution, clear data flow
+
+**Team**: Dynamic collaboration, leader decides who does what
+
+Use Workflow when steps must happen in a specific order. Use Team when agents need to collaborate dynamically.
+</Accordion>
+
+---
+
+## Next Steps
+
+Now that you've mastered the quickstart examples, explore:
+
+- [Agents](/cookbook/agents) - Deep dive into agent capabilities
+- [Teams](/cookbook/teams) - Advanced team coordination patterns
+- [Workflows](/cookbook/workflows) - Complex workflow orchestration
+- [Production](/cookbook/production) - Deploy with AgentOS

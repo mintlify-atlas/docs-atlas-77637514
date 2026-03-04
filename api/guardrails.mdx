@@ -1,0 +1,279 @@
+---
+title: Guardrails
+description: Input and output validation for agents
+---
+
+Guardrails enable you to validate and control agent inputs and outputs. They can block harmful content, enforce policies, or validate responses before they're returned to users.
+
+## BaseGuardrail
+
+The `BaseGuardrail` class is the abstract base for all guardrail implementations.
+
+```python
+from agno.guardrails import BaseGuardrail
+from agno.run.agent import RunInput
+
+class MyGuardrail(BaseGuardrail):
+    def check(self, run_input: RunInput) -> None:
+        """Perform sync guardrail check."""
+        # Raise exception to block execution
+        if "bad_word" in run_input.message:
+            raise ValueError("Blocked: inappropriate content")
+    
+    async def async_check(self, run_input: RunInput) -> None:
+        """Perform async guardrail check."""
+        if "bad_word" in run_input.message:
+            raise ValueError("Blocked: inappropriate content")
+```
+
+## Implementation
+
+### check()
+
+Synchronous guardrail check.
+
+```python
+def check(self, run_input: RunInput) -> None:
+    """Validate input. Raise exception to block."""
+    pass
+```
+
+### async_check()
+
+Asynchronous guardrail check.
+
+```python
+async def async_check(self, run_input: RunInput) -> None:
+    """Async validate input. Raise exception to block."""
+    pass
+```
+
+## Usage with Agents
+
+Guardrails can be added as pre_hooks or post_hooks:
+
+```python
+from agno import Agent
+from agno.guardrails import BaseGuardrail
+
+class ContentFilter(BaseGuardrail):
+    def check(self, run_input: RunInput) -> None:
+        if self._is_inappropriate(run_input.message):
+            raise ValueError("Content blocked by filter")
+    
+    async def async_check(self, run_input: RunInput) -> None:
+        if self._is_inappropriate(run_input.message):
+            raise ValueError("Content blocked by filter")
+    
+    def _is_inappropriate(self, text: str) -> bool:
+        # Your filtering logic
+        return False
+
+agent = Agent(
+    model="gpt-4o",
+    pre_hooks=[ContentFilter()]  # Runs before agent processes input
+)
+```
+
+## Example Guardrails
+
+<CodeGroup>
+```python Input Length Limit
+from agno.guardrails import BaseGuardrail
+
+class LengthGuardrail(BaseGuardrail):
+    def __init__(self, max_length: int = 1000):
+        self.max_length = max_length
+    
+    def check(self, run_input: RunInput) -> None:
+        if len(run_input.message) > self.max_length:
+            raise ValueError(
+                f"Input too long: {len(run_input.message)} > {self.max_length}"
+            )
+    
+    async def async_check(self, run_input: RunInput) -> None:
+        self.check(run_input)
+
+agent = Agent(
+    model="gpt-4o",
+    pre_hooks=[LengthGuardrail(max_length=500)]
+)
+```
+
+```python PII Detection
+from agno.guardrails import BaseGuardrail
+import re
+
+class PIIGuardrail(BaseGuardrail):
+    def check(self, run_input: RunInput) -> None:
+        # Check for SSN patterns
+        if re.search(r'\d{3}-\d{2}-\d{4}', run_input.message):
+            raise ValueError("Blocked: SSN detected")
+        
+        # Check for credit card patterns
+        if re.search(r'\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}', run_input.message):
+            raise ValueError("Blocked: credit card detected")
+    
+    async def async_check(self, run_input: RunInput) -> None:
+        self.check(run_input)
+
+agent = Agent(
+    model="gpt-4o",
+    pre_hooks=[PIIGuardrail()]
+)
+```
+
+```python Output Validation
+from agno.guardrails import BaseGuardrail
+
+class OutputGuardrail(BaseGuardrail):
+    """Validate agent output before returning."""
+    
+    def check(self, run_input: RunInput) -> None:
+        # For post_hooks, check the response
+        response = run_input.run_response
+        if response and response.content:
+            if "CONFIDENTIAL" in response.content:
+                raise ValueError("Blocked: confidential information")
+    
+    async def async_check(self, run_input: RunInput) -> None:
+        self.check(run_input)
+
+agent = Agent(
+    model="gpt-4o",
+    post_hooks=[OutputGuardrail()]  # Runs after agent generates response
+)
+```
+
+```python Rate Limiting
+from agno.guardrails import BaseGuardrail
+from time import time
+from collections import defaultdict
+
+class RateLimitGuardrail(BaseGuardrail):
+    def __init__(self, max_requests: int = 10, window_seconds: int = 60):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self.requests = defaultdict(list)
+    
+    def check(self, run_input: RunInput) -> None:
+        user_id = run_input.user_id or "default"
+        now = time()
+        
+        # Clean old requests
+        self.requests[user_id] = [
+            t for t in self.requests[user_id]
+            if now - t < self.window_seconds
+        ]
+        
+        # Check limit
+        if len(self.requests[user_id]) >= self.max_requests:
+            raise ValueError(
+                f"Rate limit exceeded: {self.max_requests} requests per {self.window_seconds}s"
+            )
+        
+        # Record request
+        self.requests[user_id].append(now)
+    
+    async def async_check(self, run_input: RunInput) -> None:
+        self.check(run_input)
+
+agent = Agent(
+    model="gpt-4o",
+    pre_hooks=[RateLimitGuardrail(max_requests=5, window_seconds=60)]
+)
+```
+
+```python Content Moderation API
+from agno.guardrails import BaseGuardrail
+import requests
+
+class ModerationGuardrail(BaseGuardrail):
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+    
+    def check(self, run_input: RunInput) -> None:
+        response = requests.post(
+            "https://api.openai.com/v1/moderations",
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            json={"input": run_input.message}
+        )
+        
+        result = response.json()["results"][0]
+        if result["flagged"]:
+            categories = [k for k, v in result["categories"].items() if v]
+            raise ValueError(f"Content flagged: {', '.join(categories)}")
+    
+    async def async_check(self, run_input: RunInput) -> None:
+        # Async implementation
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://api.openai.com/v1/moderations",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json={"input": run_input.message}
+            ) as response:
+                result = await response.json()
+                if result["results"][0]["flagged"]:
+                    raise ValueError("Content flagged by moderation")
+
+agent = Agent(
+    model="gpt-4o",
+    pre_hooks=[ModerationGuardrail(api_key="sk-...")]
+)
+```
+
+```python Multiple Guardrails
+from agno import Agent
+
+agent = Agent(
+    model="gpt-4o",
+    pre_hooks=[
+        LengthGuardrail(max_length=1000),
+        PIIGuardrail(),
+        RateLimitGuardrail(max_requests=10),
+        ModerationGuardrail(api_key="sk-...")
+    ],
+    post_hooks=[
+        OutputGuardrail()
+    ]
+)
+
+# All guardrails run in sequence
+try:
+    response = agent.run("User input", user_id="user_1")
+except ValueError as e:
+    print(f"Blocked: {e}")
+```
+</CodeGroup>
+
+## RunInput Structure
+
+The `RunInput` object passed to guardrails contains:
+
+- `message`: The input message
+- `user_id`: User ID (if provided)
+- `session_id`: Session ID (if provided)
+- `run_response`: The response (for post_hooks)
+- Other run parameters
+
+## Best Practices
+
+1. **Fast checks**: Keep guardrail checks fast to avoid latency
+2. **Clear errors**: Provide clear error messages when blocking
+3. **Logging**: Log blocked requests for monitoring
+4. **Async**: Implement async_check for I/O operations
+5. **Order matters**: Cheaper checks first (length before API calls)
+6. **Testing**: Thoroughly test guardrails with edge cases
+7. **Monitoring**: Track how often guardrails trigger
+
+## Use Cases
+
+- Content moderation
+- PII detection and blocking
+- Rate limiting
+- Input validation
+- Output sanitization
+- Compliance enforcement
+- Cost control (token limits)
+- Policy enforcement

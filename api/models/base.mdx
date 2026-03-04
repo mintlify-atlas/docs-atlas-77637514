@@ -1,0 +1,179 @@
+---
+title: Model
+description: Base class for language model integrations
+---
+
+The `Model` class is the abstract base for all language model integrations in Agno. It defines the interface for invoking models, streaming responses, and handling tool calls.
+
+## Core Attributes
+
+<ParamField path="id" type="str" required>
+  Model identifier (e.g., "gpt-4o", "claude-3-5-sonnet").
+</ParamField>
+
+<ParamField path="name" type="str" default="None">
+  Optional display name for the model.
+</ParamField>
+
+<ParamField path="provider" type="str" default="None">
+  Model provider name (e.g., "OpenAI", "Anthropic").
+</ParamField>
+
+## Configuration
+
+<ParamField path="tool_choice" type="str | Dict[str, Any]" default="None">
+  Controls which tool is called: "none", "auto", or specific tool.
+</ParamField>
+
+<ParamField path="system_prompt" type="str" default="None">
+  System prompt added to the agent.
+</ParamField>
+
+<ParamField path="instructions" type="List[str]" default="None">
+  Additional instructions added to the agent.
+</ParamField>
+
+## Caching
+
+<ParamField path="cache_response" type="bool" default="False">
+  Cache model responses to avoid redundant API calls during development.
+</ParamField>
+
+<ParamField path="cache_ttl" type="int" default="None">
+  Time-to-live for cached responses in seconds.
+</ParamField>
+
+<ParamField path="cache_dir" type="str" default="None">
+  Directory to store cache files.
+</ParamField>
+
+## Retries
+
+<ParamField path="retries" type="int" default="0">
+  Number of retries to attempt when a ModelProviderError occurs.
+</ParamField>
+
+<ParamField path="delay_between_retries" type="int" default="1">
+  Delay in seconds between retries.
+</ParamField>
+
+<ParamField path="exponential_backoff" type="bool" default="False">
+  If True, delay doubles after each retry.
+</ParamField>
+
+<ParamField path="retry_with_guidance" type="bool" default="True">
+  Enable retrying with guidance message for known avoidable errors.
+</ParamField>
+
+## Methods
+
+### invoke()
+
+Synchronous model invocation.
+
+```python
+response = model.invoke(
+    messages=messages,
+    tools=tools,
+    response_format=output_schema
+)
+```
+
+### ainvoke()
+
+Asynchronous model invocation.
+
+```python
+response = await model.ainvoke(
+    messages=messages,
+    tools=tools
+)
+```
+
+### invoke_stream()
+
+Stream model responses synchronously.
+
+```python
+for chunk in model.invoke_stream(messages=messages):
+    print(chunk.content, end="")
+```
+
+### ainvoke_stream()
+
+Stream model responses asynchronously.
+
+```python
+async for chunk in model.ainvoke_stream(messages=messages):
+    print(chunk.content, end="")
+```
+
+### count_tokens()
+
+Count tokens in messages.
+
+```python
+tokens = model.count_tokens(
+    messages=messages,
+    tools=tools,
+    output_schema=schema
+)
+```
+
+## Supported Models
+
+Agno provides integrations for major language model providers:
+
+- **OpenAI**: `OpenAIChat`, `OpenAIReasoning`
+- **Anthropic**: `Claude`
+- **Google**: `Gemini`
+- **Groq**: `Groq`
+- **Azure**: `AzureOpenAIChat`
+- **AWS**: `AWSBedrock`
+- **Ollama**: `Ollama`
+- **XAI**: `xAI`
+
+## Example Usage
+
+<CodeGroup>
+```python OpenAI
+from agno.models.openai import OpenAIChat
+
+model = OpenAIChat(
+    id="gpt-4o",
+    retries=3,
+    cache_response=True
+)
+```
+
+```python Claude
+from agno.models.anthropic import Claude
+
+model = Claude(
+    id="claude-3-5-sonnet-20241022",
+    system_prompt="You are a helpful assistant."
+)
+```
+
+```python With Caching
+from agno.models.openai import OpenAIChat
+
+model = OpenAIChat(
+    id="gpt-4o",
+    cache_response=True,
+    cache_ttl=3600,  # 1 hour
+    cache_dir="./model_cache"
+)
+```
+
+```python With Retries
+from agno.models.openai import OpenAIChat
+
+model = OpenAIChat(
+    id="gpt-4o",
+    retries=3,
+    delay_between_retries=2,
+    exponential_backoff=True
+)
+```
+</CodeGroup>

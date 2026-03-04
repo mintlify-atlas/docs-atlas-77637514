@@ -1,0 +1,320 @@
+---
+title: Reasoning
+description: Enable step-by-step reasoning for complex problems
+---
+
+Reasoning mode enables agents to work through problems step-by-step, showing their thinking process before arriving at a final answer. This is particularly useful for complex reasoning tasks, math problems, and multi-step planning.
+
+## Overview
+
+When reasoning is enabled, the agent:
+
+1. Breaks down the problem into steps
+2. Works through each step explicitly
+3. Shows its reasoning process
+4. Arrives at a final answer
+
+## Enabling Reasoning
+
+```python
+from agno import Agent
+
+agent = Agent(
+    model="gpt-4o",
+    reasoning=True,
+    reasoning_min_steps=1,
+    reasoning_max_steps=10
+)
+
+response = agent.run("If a train travels 60 mph for 2.5 hours, how far does it go?")
+print(response.reasoning_content)  # Shows step-by-step thinking
+print(response.content)  # Final answer
+```
+
+## Parameters
+
+<ParamField path="reasoning" type="bool" default="False">
+  Enable step-by-step reasoning mode.
+</ParamField>
+
+<ParamField path="reasoning_model" type="Model" default="None">
+  Separate model to use for reasoning steps. If not provided, uses the main model.
+</ParamField>
+
+<ParamField path="reasoning_agent" type="Agent" default="None">
+  Custom agent to use for reasoning instead of a model.
+</ParamField>
+
+<ParamField path="reasoning_min_steps" type="int" default="1">
+  Minimum number of reasoning steps to perform.
+</ParamField>
+
+<ParamField path="reasoning_max_steps" type="int" default="10">
+  Maximum number of reasoning steps allowed.
+</ParamField>
+
+## Reasoning Content
+
+The response includes two types of content:
+
+- `reasoning_content`: The step-by-step thinking process
+- `content`: The final answer
+
+```python
+response = agent.run("Complex problem")
+
+print("Reasoning:")
+print(response.reasoning_content)
+
+print("\nFinal Answer:")
+print(response.content)
+```
+
+## Example Usage
+
+<CodeGroup>
+```python Basic Reasoning
+from agno import Agent
+
+agent = Agent(
+    model="gpt-4o",
+    reasoning=True
+)
+
+response = agent.run(
+    "A store has 150 apples. They sell 60% on Monday and 25% of the "
+    "remainder on Tuesday. How many apples are left?"
+)
+
+print(response.reasoning_content)
+# Step 1: Calculate Monday sales
+# 60% of 150 = 0.6 × 150 = 90 apples
+# Remaining: 150 - 90 = 60 apples
+#
+# Step 2: Calculate Tuesday sales
+# 25% of 60 = 0.25 × 60 = 15 apples
+# Remaining: 60 - 15 = 45 apples
+
+print(response.content)
+# There are 45 apples left.
+```
+
+```python Custom Reasoning Model
+from agno import Agent
+from agno.models.openai import OpenAIChat, OpenAIReasoning
+
+agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    reasoning=True,
+    reasoning_model=OpenAIReasoning(id="o1-preview"),  # Use o1 for reasoning
+    reasoning_max_steps=15
+)
+
+response = agent.run("Solve this complex math problem...")
+```
+
+```python With Tools
+from agno import Agent
+from agno.tools import tool
+
+@tool
+def calculate(expression: str) -> float:
+    """Evaluate a mathematical expression."""
+    return eval(expression)
+
+agent = Agent(
+    model="gpt-4o",
+    reasoning=True,
+    tools=[calculate]
+)
+
+response = agent.run(
+    "If I invest $1000 at 5% annual interest compounded monthly for 3 years, "
+    "how much will I have?"
+)
+# Agent reasons through the compound interest formula
+# Uses calculator tool for precise computation
+```
+
+```python Step Limits
+from agno import Agent
+
+# Ensure thorough reasoning
+agent = Agent(
+    model="gpt-4o",
+    reasoning=True,
+    reasoning_min_steps=3,  # At least 3 steps
+    reasoning_max_steps=20  # Up to 20 steps
+)
+
+response = agent.run("Design a database schema for an e-commerce platform")
+# Agent breaks down the problem:
+# Step 1: Identify main entities
+# Step 2: Define relationships
+# Step 3: Specify attributes
+# ...
+```
+
+```python Planning Problems
+from agno import Agent
+
+agent = Agent(
+    model="gpt-4o",
+    reasoning=True,
+    reasoning_max_steps=15
+)
+
+response = agent.run(
+    "Plan a 7-day trip to Japan, visiting Tokyo, Kyoto, and Osaka. "
+    "Include transportation, accommodation, and activities."
+)
+
+print(response.reasoning_content)
+# Step 1: Allocate days per city
+# - Tokyo: 3 days
+# - Kyoto: 2 days
+# - Osaka: 2 days
+#
+# Step 2: Plan transportation
+# - Flights to Tokyo
+# - Shinkansen Tokyo to Kyoto
+# - Train Kyoto to Osaka
+#
+# Step 3: Select accommodation
+# ...
+```
+
+```python Redacted Reasoning
+from agno import Agent
+
+agent = Agent(
+    model="gpt-4o",
+    reasoning=True
+)
+
+response = agent.run("Problem to solve")
+
+# Full reasoning (internal)
+print(response.reasoning_content)
+
+# Redacted reasoning (safe to show users)
+print(response.redacted_reasoning_content)
+```
+</CodeGroup>
+
+## Reasoning Agent
+
+For more control, use a custom reasoning agent:
+
+```python
+from agno import Agent
+
+# Create specialized reasoning agent
+reasoning_agent = Agent(
+    model="gpt-4o",
+    instructions=[
+        "Break down problems step by step",
+        "Show your work for each step",
+        "Verify your logic before proceeding"
+    ]
+)
+
+# Main agent uses reasoning agent
+agent = Agent(
+    model="gpt-4o",
+    reasoning=True,
+    reasoning_agent=reasoning_agent
+)
+```
+
+## Use Cases
+
+### Mathematics
+
+```python
+agent = Agent(
+    model="gpt-4o",
+    reasoning=True,
+    tools=[calculator]
+)
+
+response = agent.run(
+    "Solve the quadratic equation: 2x^2 + 5x - 3 = 0"
+)
+```
+
+### Code Planning
+
+```python
+agent = Agent(
+    model="gpt-4o",
+    reasoning=True,
+    instructions=["Plan before implementing"]
+)
+
+response = agent.run(
+    "Design and implement a binary search tree with insert and delete operations"
+)
+```
+
+### Strategic Planning
+
+```python
+agent = Agent(
+    model="gpt-4o",
+    reasoning=True,
+    reasoning_max_steps=20
+)
+
+response = agent.run(
+    "Create a go-to-market strategy for a new SaaS product targeting small businesses"
+)
+```
+
+### Problem Debugging
+
+```python
+agent = Agent(
+    model="gpt-4o",
+    reasoning=True,
+    tools=[run_code, read_logs]
+)
+
+response = agent.run(
+    "Debug why the API is returning 500 errors intermittently"
+)
+```
+
+## Best Practices
+
+1. **Complex problems**: Use reasoning for multi-step or complex problems
+2. **Step limits**: Set appropriate min/max steps for your use case
+3. **Show reasoning**: Display reasoning to users for transparency
+4. **Combine with tools**: Use tools alongside reasoning for best results
+5. **Specialized models**: Consider o1/o3 models for advanced reasoning
+6. **Verification**: The agent can verify its own reasoning at each step
+7. **Cost awareness**: Reasoning uses more tokens, monitor costs
+
+## Models with Native Reasoning
+
+Some models have built-in reasoning capabilities:
+
+- **OpenAI o1**: Optimized for complex reasoning
+- **OpenAI o3**: Advanced reasoning model
+- **Claude 3.5 Sonnet**: Extended thinking mode
+
+```python
+from agno.models.openai import OpenAIReasoning
+
+agent = Agent(
+    model=OpenAIReasoning(id="o1-preview"),
+    # Reasoning is implicit with these models
+)
+```
+
+## Limitations
+
+- Increases token usage and latency
+- May not help for simple questions
+- Quality depends on model capabilities
+- Not all models support reasoning equally well

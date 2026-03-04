@@ -1,0 +1,260 @@
+---
+title: "Tool Decorator"
+description: "Decorator for creating agent tools from functions"
+---
+
+The `@tool` decorator converts Python functions into tools that agents can use. It automatically generates JSON schemas from type hints and docstrings.
+
+## Basic Usage
+
+```python
+from agno.tools import tool
+
+@tool
+def get_weather(city: str) -> str:
+    """Get the weather for a city.
+    
+    Args:
+        city: The name of the city
+    """
+    return f"Weather in {city}: Sunny"
+```
+
+## Parameters
+
+<ParamField path="name" type="str" default="None">
+  Custom name for the tool (uses function name if not provided).
+</ParamField>
+
+<ParamField path="description" type="str" default="None">
+  Description of what the tool does (extracted from docstring if not provided).
+</ParamField>
+
+<ParamField path="instructions" type="str" default="None">
+  Additional instructions for using the tool.
+</ParamField>
+
+<ParamField path="show_result" type="bool" default="False">
+  If True, shows the tool result to the user.
+</ParamField>
+
+<ParamField path="stop_after_tool_call" type="bool" default="False">
+  If True, stops the agent after this tool executes.
+</ParamField>
+
+<ParamField path="requires_confirmation" type="bool" default="False">
+  If True, requires user confirmation before execution.
+</ParamField>
+
+<ParamField path="external_execution" type="bool" default="False">
+  If True, the tool will be executed outside the agent's control.
+</ParamField>
+
+<ParamField path="cache_results" type="bool" default="False">
+  Enable result caching.
+</ParamField>
+
+<ParamField path="cache_ttl" type="int" default="3600">
+  Cache time-to-live in seconds.
+</ParamField>
+
+## Schema Generation
+
+The decorator automatically generates JSON schemas from:
+
+1. **Type hints**: Function parameter and return types
+2. **Docstrings**: Parameter descriptions using Google, NumPy, or Sphinx style
+3. **Default values**: Optional parameters vs required
+
+```python
+@tool
+def search_web(query: str, max_results: int = 10) -> str:
+    """Search the web for information.
+    
+    Args:
+        query: The search query
+        max_results: Maximum number of results to return
+    """
+    # Implementation
+    return "Search results"
+```
+
+## Agent Context Injection
+
+Tools can access the agent, team, or run context:
+
+```python
+@tool
+def search_memory(query: str, agent: Agent) -> str:
+    """Search the agent's memory.
+    
+    Args:
+        query: Search query
+        agent: The agent instance (injected automatically)
+    """
+    memories = agent.get_user_memories()
+    # Search through memories
+    return "Memory results"
+```
+
+Available context parameters:
+- `agent`: The Agent instance
+- `team`: The Team instance
+- `run_context`: The RunContext with session state
+- `images`, `videos`, `audios`, `files`: Media from the message
+
+## Hooks
+
+```python
+def log_call(fc):
+    print(f"Calling: {fc.function.name}")
+
+@tool(pre_hook=log_call)
+def my_tool(arg: str) -> str:
+    return arg.upper()
+```
+
+## HITL (Human-in-the-Loop)
+
+```python
+@tool(requires_confirmation=True, show_result=True)
+def delete_file(path: str) -> str:
+    """Delete a file from disk.
+    
+    Args:
+        path: Path to the file to delete
+    """
+    os.remove(path)
+    return f"Deleted {path}"
+```
+
+## Async Tools
+
+```python
+@tool
+async def fetch_data(url: str) -> str:
+    """Fetch data from a URL.
+    
+    Args:
+        url: The URL to fetch
+    """
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            return await resp.text()
+```
+
+## Example Usage
+
+<CodeGroup>
+```python Simple Tool
+from agno import Agent
+from agno.tools import tool
+
+@tool
+def calculate(expression: str) -> str:
+    """Evaluate a mathematical expression.
+    
+    Args:
+        expression: The expression to evaluate (e.g., "2+2")
+    """
+    result = eval(expression)
+    return str(result)
+
+agent = Agent(model="gpt-4o", tools=[calculate])
+response = agent.run("What's 15 * 23?")
+```
+
+```python With Agent Context
+from agno import Agent
+from agno.tools import tool
+
+@tool
+def get_session_info(agent: Agent) -> str:
+    """Get information about the current session.
+    
+    Args:
+        agent: The agent instance (injected)
+    """
+    return f"Session: {agent.session_id}, User: {agent.user_id}"
+
+agent = Agent(model="gpt-4o", tools=[get_session_info])
+```
+
+```python With Confirmation
+from agno.tools import tool
+
+@tool(requires_confirmation=True, show_result=True)
+def send_email(to: str, subject: str, body: str) -> str:
+    """Send an email.
+    
+    Args:
+        to: Recipient email address
+        subject: Email subject
+        body: Email body
+    """
+    # Send email
+    return f"Email sent to {to}"
+```
+
+```python With Caching
+from agno.tools import tool
+
+@tool(cache_results=True, cache_ttl=1800)
+def fetch_stock_price(symbol: str) -> float:
+    """Get current stock price.
+    
+    Args:
+        symbol: Stock ticker symbol
+    """
+    # Expensive API call
+    return 123.45
+```
+
+```python Complex Types
+from typing import List, Dict
+from agno.tools import tool
+
+@tool
+def analyze_data(data: List[Dict[str, int]]) -> Dict[str, float]:
+    """Analyze a dataset.
+    
+    Args:
+        data: List of data records
+    """
+    # Process data
+    return {"mean": 50.0, "median": 45.0}
+```
+
+```python Class Methods
+from agno.tools import tool, Toolkit
+
+class MyToolkit(Toolkit):
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        super().__init__(
+            name="my_toolkit",
+            tools=[self.search, self.fetch]
+        )
+    
+    @tool
+    def search(self, query: str) -> str:
+        """Search using the API."""
+        # Use self.api_key
+        return "Results"
+    
+    @tool
+    def fetch(self, id: str) -> str:
+        """Fetch data by ID."""
+        return "Data"
+```
+</CodeGroup>
+
+## Best Practices
+
+1. **Type hints**: Always provide type hints for parameters and return values
+2. **Docstrings**: Write clear docstrings with parameter descriptions
+3. **Descriptive names**: Use clear, descriptive function names
+4. **Error handling**: Handle errors gracefully and return informative messages
+5. **Side effects**: Use confirmation for tools with side effects
+6. **Context**: Leverage agent/team context when needed
+7. **Async**: Use async for I/O-bound operations

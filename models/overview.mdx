@@ -1,0 +1,58 @@
+---
+title: "Models overview"
+description: "Use 40+ model providers with Agno"
+---
+
+Agno supports 40+ model providers with a unified interface. Switch providers with a single line of code.
+
+## Supported providers
+
+<CardGroup cols={3}>
+  <Card title="OpenAI" icon="openai" href="/models/openai">
+    GPT-4.5, GPT-4o, o1, o3
+  </Card>
+  <Card title="Anthropic" icon="robot" href="/models/anthropic">
+    Claude 4.5 Sonnet, Opus
+  </Card>
+  <Card title="Google" icon="google" href="/models/google">
+    Gemini 3 Flash, Pro
+  </Card>
+  <Card title="AWS Bedrock" icon="aws" href="/models/aws-bedrock">
+    Claude, Llama, Titan
+  </Card>
+  <Card title="Azure" icon="microsoft" href="/models/azure">
+    Azure OpenAI Service
+  </Card>
+  <Card title="Groq" icon="microchip">
+    Llama, Mixtral (fast inference)
+  </Card>
+  <Card title="Mistral" icon="rocket">
+    Mistral Large, Small
+  </Card>
+  <Card title="Ollama" icon="server">
+    Local model hosting
+  </Card>
+  <Card title="Custom" icon="code" href="/models/custom">
+    Build your own integration
+  </Card>
+</CardGroup>
+
+## Quick example
+
+```python
+from agno.agent import Agent
+from agno.models.openai import OpenAIResponses
+from agno.models.anthropic import Claude
+from agno.models.google import Gemini
+
+# OpenAI
+agent = Agent(model=OpenAIResponses(id="gpt-4.5"))
+
+# Anthropic
+agent = Agent(model=Claude(id="claude-sonnet-4-6"))
+
+# Google
+agent = Agent(model=Gemini(id="gemini-3-flash-preview"))
+```
+
+See individual provider pages for API keys and configuration.

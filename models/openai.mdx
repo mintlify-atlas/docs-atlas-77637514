@@ -1,0 +1,35 @@
+---
+title: "OpenAI"
+description: "Use OpenAI models with Agno"
+---
+
+## Setup
+
+```bash
+pip install agno[openai]
+export OPENAI_API_KEY="your-api-key"
+```
+
+## Usage
+
+```python
+from agno.agent import Agent
+from agno.models.openai import OpenAIResponses
+
+agent = Agent(
+    model=OpenAIResponses(
+        id="gpt-4.5",
+        temperature=0.7,
+        max_tokens=1000
+    )
+)
+```
+
+## Available models
+
+- `gpt-4.5` - Latest and most capable
+- `gpt-4o` - Optimized for speed
+- `o1` - Reasoning model
+- `o3` - Advanced reasoning
+
+See [OpenAI documentation](https://platform.openai.com/docs) for details.

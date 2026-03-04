@@ -1,0 +1,276 @@
+---
+title: AgentOS
+description: FastAPI-based server for running agents, teams, and workflows
+---
+
+AgentOS is a production-ready FastAPI server that exposes your agents, teams, and workflows as REST APIs. It provides built-in endpoints for running AI components, managing sessions, and handling streaming responses.
+
+## Quick Start
+
+```python
+from agno import Agent
+from agno.api.os import AgentOS
+
+app = AgentOS(
+    agents=[Agent(name="assistant", model="gpt-4o")]
+)
+
+app.serve()
+```
+
+## Constructor
+
+<ParamField path="agents" type="List[Agent]" default="[]">
+  List of agents to expose via the API.
+</ParamField>
+
+<ParamField path="teams" type="List[Team]" default="[]">
+  List of teams to expose via the API.
+</ParamField>
+
+<ParamField path="workflows" type="List[Workflow]" default="[]">
+  List of workflows to expose via the API.
+</ParamField>
+
+<ParamField path="title" type="str" default="AgentOS">
+  API title shown in documentation.
+</ParamField>
+
+<ParamField path="description" type="str" default="None">
+  API description shown in documentation.
+</ParamField>
+
+<ParamField path="version" type="str" default="1.0.0">
+  API version.
+</ParamField>
+
+<ParamField path="host" type="str" default="0.0.0.0">
+  Host to bind the server to.
+</ParamField>
+
+<ParamField path="port" type="int" default="7777">
+  Port to run the server on.
+</ParamField>
+
+<ParamField path="reload" type="bool" default="False">
+  Enable auto-reload for development.
+</ParamField>
+
+<ParamField path="log_level" type="str" default="info">
+  Logging level: "debug", "info", "warning", "error".
+</ParamField>
+
+## Methods
+
+### serve()
+
+Start the API server.
+
+```python
+app.serve()
+```
+
+**Parameters:**
+
+- `host` (str): Override default host
+- `port` (int): Override default port
+- `reload` (bool): Enable auto-reload
+
+### add_agent()
+
+Add an agent to the API after initialization.
+
+```python
+app.add_agent(Agent(name="helper"))
+```
+
+### add_team()
+
+Add a team to the API.
+
+```python
+app.add_team(team)
+```
+
+### add_workflow()
+
+Add a workflow to the API.
+
+```python
+app.add_workflow(workflow)
+```
+
+## API Endpoints
+
+When you run AgentOS, the following endpoints are automatically created:
+
+### Agent Endpoints
+
+**POST /agents/{agent_id}/run**
+
+Run an agent.
+
+```bash
+curl -X POST http://localhost:7777/agents/assistant/run \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello!"}'
+```
+
+**POST /agents/{agent_id}/stream**
+
+Run an agent with streaming.
+
+**GET /agents/{agent_id}/sessions**
+
+List sessions for an agent.
+
+**GET /agents/{agent_id}/sessions/{session_id}**
+
+Get a specific session.
+
+### Team Endpoints
+
+**POST /teams/{team_id}/run**
+
+Run a team.
+
+**POST /teams/{team_id}/stream**
+
+Run a team with streaming.
+
+### Workflow Endpoints
+
+**POST /workflows/{workflow_id}/run**
+
+Run a workflow.
+
+**POST /workflows/{workflow_id}/stream**
+
+Run a workflow with streaming.
+
+## Example Usage
+
+<CodeGroup>
+```python Basic Server
+from agno import Agent
+from agno.api.os import AgentOS
+from agno.models.openai import OpenAIChat
+
+assistant = Agent(
+    name="assistant",
+    model=OpenAIChat(id="gpt-4o"),
+    instructions="You are a helpful assistant."
+)
+
+app = AgentOS(
+    agents=[assistant],
+    title="My AI API",
+    version="1.0.0"
+)
+
+app.serve()
+```
+
+```python Multi-Component Server
+from agno import Agent, Team, Workflow
+from agno.api.os import AgentOS
+
+# Define components
+agent = Agent(name="helper", model="gpt-4o")
+team = Team(members=[agent], name="support_team")
+workflow = Workflow(name="process_request", steps=[...])
+
+# Create API
+app = AgentOS(
+    agents=[agent],
+    teams=[team],
+    workflows=[workflow],
+    host="0.0.0.0",
+    port=8000
+)
+
+app.serve()
+```
+
+```python With Database
+from agno import Agent
+from agno.api.os import AgentOS
+from agno.db.postgres import PostgresDb
+
+db = PostgresDb(
+    host="localhost",
+    db="agno",
+    user="user",
+    password="password"
+)
+
+agent = Agent(
+    name="assistant",
+    model="gpt-4o",
+    db=db,
+    add_history_to_context=True
+)
+
+app = AgentOS(agents=[agent])
+app.serve()
+```
+
+```python Client Usage
+import requests
+
+# Run agent
+response = requests.post(
+    "http://localhost:7777/agents/assistant/run",
+    json={
+        "message": "What's the weather?",
+        "session_id": "user_123",
+        "stream": False
+    }
+)
+
+result = response.json()
+print(result["content"])
+
+# Get session history
+response = requests.get(
+    "http://localhost:7777/agents/assistant/sessions/user_123"
+)
+
+session = response.json()
+print(session["runs"])
+```
+</CodeGroup>
+
+## Deployment
+
+### Docker
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+COPY . .
+
+CMD ["python", "app.py"]
+```
+
+### Production Settings
+
+```python
+from agno.api.os import AgentOS
+
+app = AgentOS(
+    agents=[...],
+    host="0.0.0.0",
+    port=8000,
+    reload=False,
+    log_level="info"
+)
+
+# Run with Gunicorn
+# gunicorn app:app -w 4 -k uvicorn.workers.UvicornWorker
+```

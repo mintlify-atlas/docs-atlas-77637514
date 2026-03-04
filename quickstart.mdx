@@ -1,80 +1,269 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Build and run your first agent in under 5 minutes
 ---
 
-## Get started in three steps
+This guide will take you from zero to a running agentic system with memory, tools, and a production API in under 5 minutes.
 
-Get your documentation site running locally and make your first customization.
+## What You'll Build
 
-### Step 1: Set up your local environment
+A stateful, tool-using agent that:
+- Connects to the Agno documentation via MCP
+- Remembers conversation context across sessions
+- Streams responses in real time
+- Runs as a production API
+- Integrates with the AgentOS UI
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+All in ~20 lines of code.
 
-### Step 2: Deploy your changes
+## Prerequisites
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+Before you begin, make sure you have:
+- Python 3.7 or higher
+- An Anthropic API key ([get one here](https://console.anthropic.com/))
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+## Step 1: Create Your Agent
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+Create a new file called `agno_assist.py`:
 
-### Step 3: Go live
+```python agno_assist.py
+from agno.agent import Agent
+from agno.db.sqlite import SqliteDb
+from agno.models.anthropic import Claude
+from agno.os import AgentOS
+from agno.tools.mcp import MCPTools
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+agno_assist = Agent(
+    name="Agno Assist",
+    model=Claude(id="claude-sonnet-4-6"),
+    db=SqliteDb(db_file="agno.db"),
+    tools=[MCPTools(url="https://docs.agno.com/mcp")],
+    add_history_to_context=True,
+    num_history_runs=3,
+    markdown=True,
+)
 
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+agent_os = AgentOS(agents=[agno_assist], tracing=True)
+app = agent_os.get_app()
+```
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+This example uses SQLite for simplicity. For production, use PostgreSQL. See the [Installation guide](/installation) for database setup.
 </Note>
+
+## Step 2: Set Your API Key
+
+Export your Anthropic API key:
+
+```bash
+export ANTHROPIC_API_KEY="your-api-key-here"
+```
+
+## Step 3: Run Your Agent
+
+Start the AgentOS server using `uvx`:
+
+```bash
+uvx --python 3.12 \
+  --with "agno[os]" \
+  --with anthropic \
+  --with mcp \
+  fastapi dev agno_assist.py
+```
+
+Your agent is now running at `http://localhost:8000`.
+
+<Accordion title="What's happening here?">
+  - `uvx` runs the command with the specified dependencies without requiring a virtual environment
+  - `--with "agno[os]"` installs Agno with AgentOS dependencies (FastAPI, uvicorn, SQLAlchemy)
+  - `--with anthropic` installs the Anthropic SDK
+  - `--with mcp` installs MCP (Model Context Protocol) support
+  - `fastapi dev` starts a development server with auto-reload
+</Accordion>
+
+## Step 4: Connect to AgentOS UI
+
+Now let's connect your agent to the AgentOS web interface:
+
+<Steps>
+  <Step title="Open AgentOS">
+    Visit [os.agno.com](https://os.agno.com) and sign in
+  </Step>
+  
+  <Step title="Add your endpoint">
+    Click **"Add new OS"** in the top navigation
+  </Step>
+  
+  <Step title="Configure connection">
+    - Select **"Local"** to connect to a local AgentOS
+    - Enter your endpoint URL: `http://localhost:8000`
+    - Name it "Local AgentOS"
+    - Click **"Connect"**
+  </Step>
+  
+  <Step title="Start chatting">
+    Open Chat, select your agent, and ask:
+    
+    > What is Agno?
+    
+    The agent retrieves context from the Agno MCP server and responds with grounded answers.
+  </Step>
+</Steps>
+
+## What You Just Built
+
+In ~20 lines, you created:
+
+<CardGroup cols={2}>
+  <Card title="Stateful Agent" icon="brain">
+    Remembers the last 3 conversation turns across sessions
+  </Card>
+  <Card title="Tool Integration" icon="wrench">
+    Can query Agno documentation via MCP
+  </Card>
+  <Card title="Production API" icon="code">
+    REST endpoints at http://localhost:8000
+  </Card>
+  <Card title="Real-time Streaming" icon="signal-stream">
+    Streams reasoning and responses as they're generated
+  </Card>
+  <Card title="Per-user Isolation" icon="users">
+    Each user gets their own session and memory
+  </Card>
+  <Card title="Native Tracing" icon="chart-line">
+    Full observability of every agent interaction
+  </Card>
+</CardGroup>
+
+## Try It Programmatically
+
+You can also call your agent directly in Python:
+
+```python
+from agno.agent import Agent
+from agno.db.sqlite import SqliteDb
+from agno.models.anthropic import Claude
+from agno.tools.mcp import MCPTools
+
+agent = Agent(
+    name="Agno Assist",
+    model=Claude(id="claude-sonnet-4-6"),
+    db=SqliteDb(db_file="agno.db"),
+    tools=[MCPTools(url="https://docs.agno.com/mcp")],
+    add_history_to_context=True,
+    num_history_runs=3,
+)
+
+# Print response to console
+agent.print_response("What is Agno?", stream=True)
+
+# Or get the response as a string
+response = agent.run("What are the core concepts in Agno?")
+print(response.content)
+```
+
+## Understanding the Code
+
+Let's break down each component:
+
+### Agent Configuration
+
+```python
+agno_assist = Agent(
+    name="Agno Assist",
+    model=Claude(id="claude-sonnet-4-6"),
+    db=SqliteDb(db_file="agno.db"),
+    tools=[MCPTools(url="https://docs.agno.com/mcp")],
+    add_history_to_context=True,
+    num_history_runs=3,
+    markdown=True,
+)
+```
+
+- `name` - Identifies the agent in logs and UI
+- `model` - The LLM to use (Claude Sonnet 4.6 in this case)
+- `db` - Where to store conversation history and state
+- `tools` - Functions the agent can call (MCP integration here)
+- `add_history_to_context=True` - Include previous turns in context
+- `num_history_runs=3` - Remember last 3 conversation turns
+- `markdown=True` - Format responses as markdown
+
+### AgentOS Setup
+
+```python
+agent_os = AgentOS(agents=[agno_assist], tracing=True)
+app = agent_os.get_app()
+```
+
+- `agents` - List of agents to expose via API
+- `tracing=True` - Enable OpenTelemetry tracing
+- `get_app()` - Returns a FastAPI application
+
+## Next Steps
+
+Now that you have a working agent, explore more advanced features:
+
+<CardGroup cols={2}>
+  <Card title="Core Concepts" icon="book" href="/core-concepts">
+    Learn about Agents, Teams, Workflows, and more
+  </Card>
+  <Card title="Add Memory" icon="brain" href="/guides/memory">
+    Give your agent long-term memory that persists
+  </Card>
+  <Card title="Add Knowledge" icon="database" href="/guides/knowledge">
+    Connect your agent to vector databases and RAG
+  </Card>
+  <Card title="Production Setup" icon="server" href="/deployment/production">
+    Deploy to production with PostgreSQL and monitoring
+  </Card>
+</CardGroup>
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="Port 8000 is already in use">
+    If port 8000 is already taken, specify a different port:
+    
+    ```bash
+    uvx --python 3.12 \
+      --with "agno[os]" \
+      --with anthropic \
+      --with mcp \
+      fastapi dev agno_assist.py --port 8080
+    ```
+  </Accordion>
+  
+  <Accordion title="API key not found">
+    Make sure you've exported your API key in the same terminal session:
+    
+    ```bash
+    export ANTHROPIC_API_KEY="your-api-key"
+    echo $ANTHROPIC_API_KEY  # Verify it's set
+    ```
+    
+    Alternatively, create a `.env` file:
+    
+    ```bash .env
+    ANTHROPIC_API_KEY=your-api-key-here
+    ```
+  </Accordion>
+  
+  <Accordion title="Cannot connect to AgentOS UI">
+    Make sure:
+    1. Your server is running at `http://localhost:8000`
+    2. You're using the correct URL in the AgentOS connection dialog
+    3. There are no firewall or network restrictions
+  </Accordion>
+</AccordionGroup>
+
+## You Can Use This Exact Same Architecture for Production
+
+This isn't just a demo. This is the same architecture used in production multi-agent systems:
+
+- Swap SQLite for PostgreSQL
+- Add more agents and teams
+- Deploy with Docker or Kubernetes
+- Add authentication and authorization
+- Scale horizontally
+
+The [cookbook](https://github.com/agno-agi/agno/tree/main/cookbook) has examples of all these patterns.

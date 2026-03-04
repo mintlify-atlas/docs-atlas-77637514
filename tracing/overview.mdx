@@ -1,0 +1,460 @@
+---
+title: Tracing Overview
+description: Monitor and debug agent execution with OpenTelemetry-based tracing
+---
+
+Tracing provides detailed visibility into agent execution, capturing every step from model calls to tool usage. Agno uses OpenTelemetry for automatic instrumentation and stores traces in your database.
+
+## What is Tracing?
+
+Tracing captures:
+
+- **Agent runs**: Complete execution flows
+- **Model calls**: LLM requests and responses
+- **Tool executions**: Tool calls with arguments and results
+- **Team coordination**: Multi-agent interactions
+- **Workflow steps**: Workflow execution paths
+- **Performance metrics**: Latency, token usage, costs
+
+## Quick Start
+
+Enable tracing with a single function call:
+
+```python
+from agno.agent import Agent
+from agno.db.sqlite import SqliteDb
+from agno.tracing import setup_tracing
+from agno.models.openai import OpenAIResponses
+
+# Setup tracing (do this once at app startup)
+db = SqliteDb(db_file="tmp/traces.db")
+setup_tracing(db=db)
+
+# Now all agents are automatically traced
+agent = Agent(
+    name="Customer Service Agent",
+    model=OpenAIResponses(id="gpt-5-mini"),
+)
+
+agent.run("Help me with my order")
+# This run is automatically traced and stored in the database
+```
+
+That's it! All agent runs are now automatically traced.
+
+## How It Works
+
+Agno uses OpenTelemetry for instrumentation:
+
+<Steps>
+  <Step title="Setup">
+    Call `setup_tracing()` once at application startup:
+    ```python
+    from agno.tracing import setup_tracing
+    from agno.db.sqlite import SqliteDb
+    
+    setup_tracing(db=SqliteDb(db_file="tmp/traces.db"))
+    ```
+  </Step>
+
+  <Step title="Automatic Capture">
+    Agno automatically captures traces for:
+    - `agent.run()` and `agent.arun()`
+    - `team.run()` and `team.arun()`
+    - `workflow.run()` and `workflow.arun()`
+    - All model calls
+    - All tool executions
+  </Step>
+
+  <Step title="Storage">
+    Traces are stored in your database for analysis:
+    - Sync or async database support
+    - Query by run ID, agent, time range
+    - Full execution context preserved
+  </Step>
+</Steps>
+
+## Configuration
+
+### Basic Setup
+
+```python
+from agno.tracing import setup_tracing
+from agno.db.sqlite import SqliteDb
+
+# Simple setup with defaults
+setup_tracing(db=SqliteDb(db_file="tmp/traces.db"))
+```
+
+### Batch Processing
+
+For high-throughput applications, use batch processing:
+
+```python
+setup_tracing(
+    db=db,
+    batch_processing=True,        # Enable batching
+    max_queue_size=2048,          # Queue size
+    max_export_batch_size=512,    # Batch size
+    schedule_delay_millis=5000,   # Export every 5 seconds
+)
+```
+
+### Production Database
+
+Use PostgreSQL for production:
+
+```python
+from agno.db.postgres import PostgresDb
+
+db = PostgresDb(
+    host="localhost",
+    port=5432,
+    user="agno",
+    password="password",
+    database="agno_traces",
+)
+
+setup_tracing(db=db, batch_processing=True)
+```
+
+## What Gets Traced
+
+### Agent Runs
+
+Every agent run is traced:
+
+```python
+agent = Agent(
+    name="Support Agent",
+    model=OpenAIResponses(id="gpt-5-mini"),
+)
+
+response = agent.run("Process refund for order #12345")
+
+# Trace includes:
+# - Run ID
+# - Input and output
+# - Execution time
+# - Token usage
+# - Cost estimation
+# - All model calls
+# - All tool calls
+```
+
+### Model Calls
+
+All LLM requests are captured:
+
+```python
+# Trace includes:
+# - Model ID and provider
+# - Prompt and completion
+# - Token counts (prompt, completion, total)
+# - Latency
+# - Temperature and other parameters
+```
+
+### Tool Executions
+
+Tool calls with full context:
+
+```python
+from agno.tools import tool
+
+@tool
+def search_database(query: str) -> str:
+    """Search the customer database."""
+    return db.search(query)
+
+agent = Agent(
+    model=OpenAIResponses(id="gpt-5-mini"),
+    tools=[search_database],
+)
+
+agent.run("Find customer John Doe")
+
+# Trace includes:
+# - Tool name: search_database
+# - Arguments: {"query": "John Doe"}
+# - Result: customer data
+# - Execution time
+```
+
+### Team Coordination
+
+Multi-agent interactions:
+
+```python
+from agno.team import Team
+
+researcher = Agent(name="Researcher", ...)
+writer = Agent(name="Writer", ...)
+
+team = Team(agents=[researcher, writer])
+team.run("Write a report about AI")
+
+# Trace includes:
+# - Team coordination
+# - Individual agent runs
+# - Agent handoffs
+# - Combined metrics
+```
+
+### Workflow Execution
+
+Workflow step tracking:
+
+```python
+from agno.workflow import Workflow
+
+workflow = Workflow(
+    name="Order Processing",
+    steps=[validate_order, process_payment, ship_order],
+)
+
+workflow.run(order_data)
+
+# Trace includes:
+# - Each workflow step
+# - Step inputs and outputs
+# - Step duration
+# - Overall workflow metrics
+```
+
+## Querying Traces
+
+Query traces from your database:
+
+```python
+from agno.db.sqlite import SqliteDb
+
+db = SqliteDb(db_file="tmp/traces.db")
+
+# Get traces for specific run
+traces = db.get_traces(run_id="run_123")
+
+# Get traces by agent
+traces = db.get_traces(agent_id="agent_456")
+
+# Get traces in time range
+from datetime import datetime, timedelta
+
+start = datetime.now() - timedelta(hours=1)
+end = datetime.now()
+
+traces = db.get_traces(
+    start_time=start,
+    end_time=end,
+)
+
+# Analyze traces
+for trace in traces:
+    print(f"Span: {trace.name}")
+    print(f"Duration: {trace.duration}ms")
+    print(f"Attributes: {trace.attributes}")
+```
+
+## Performance Analysis
+
+Analyze performance bottlenecks:
+
+```python
+# Get slow runs
+slow_runs = db.get_traces(
+    min_duration_ms=5000,  # Runs taking >5 seconds
+)
+
+for run in slow_runs:
+    print(f"Run ID: {run.run_id}")
+    print(f"Duration: {run.duration}ms")
+    
+    # Find slowest component
+    slowest_span = max(run.spans, key=lambda s: s.duration)
+    print(f"Bottleneck: {slowest_span.name}")
+    print(f"Took: {slowest_span.duration}ms")
+```
+
+## Cost Tracking
+
+Monitor LLM costs:
+
+```python
+# Get traces with cost data
+traces = db.get_traces(
+    start_time=start_of_month,
+    end_time=end_of_month,
+)
+
+total_cost = 0
+total_tokens = 0
+
+for trace in traces:
+    if trace.attributes.get('llm.token_count.total'):
+        tokens = trace.attributes['llm.token_count.total']
+        cost = trace.attributes.get('llm.cost', 0)
+        
+        total_tokens += tokens
+        total_cost += cost
+
+print(f"Total tokens: {total_tokens:,}")
+print(f"Total cost: ${total_cost:.2f}")
+print(f"Average cost per token: ${total_cost/total_tokens:.6f}")
+```
+
+## Debugging
+
+Use traces to debug issues:
+
+```python
+# Find failed runs
+failed = db.get_traces(
+    status="error",
+)
+
+for trace in failed:
+    print(f"\nFailed Run: {trace.run_id}")
+    print(f"Error: {trace.attributes.get('error.message')}")
+    print(f"Stack: {trace.attributes.get('error.stack')}")
+    
+    # Examine context
+    print(f"\nInput: {trace.attributes.get('input')}")
+    print(f"Agent: {trace.attributes.get('agent.name')}")
+    
+    # Find where it failed
+    for span in trace.spans:
+        if span.status == "error":
+            print(f"\nFailed at: {span.name}")
+            print(f"Error: {span.attributes.get('error.message')}")
+```
+
+## Integration with Observability Platforms
+
+Agno traces use OpenTelemetry, compatible with:
+
+- **Arize Phoenix**: AI observability platform
+- **Langfuse**: LLM tracing and analytics
+- **Datadog**: Full-stack observability
+- **New Relic**: Application performance monitoring
+- **Honeycomb**: Distributed tracing
+
+### Export to External Platform
+
+```python
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+# Configure OTLP exporter
+exporter = OTLPSpanExporter(
+    endpoint="https://your-platform.com/v1/traces",
+    headers={"api-key": "your-api-key"},
+)
+
+# Add to tracer provider
+from opentelemetry import trace
+
+tracer_provider = trace.get_tracer_provider()
+tracer_provider.add_span_processor(
+    BatchSpanProcessor(exporter)
+)
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Setup Once" icon="1">
+    Call `setup_tracing()` once at application startup, not per request
+  </Card>
+  <Card title="Use Batching" icon="layer-group">
+    Enable batch processing for production workloads
+  </Card>
+  <Card title="Database Choice" icon="database">
+    Use PostgreSQL for production, SQLite for development
+  </Card>
+  <Card title="Regular Cleanup" icon="broom">
+    Archive or delete old traces to manage database size
+  </Card>
+</CardGroup>
+
+## Trace Lifecycle
+
+<Steps>
+  <Step title="Capture">
+    Traces captured automatically during execution
+  </Step>
+  <Step title="Buffer">
+    Spans buffered in memory (batch mode) or exported immediately
+  </Step>
+  <Step title="Export">
+    Exported to database via DatabaseSpanExporter
+  </Step>
+  <Step title="Query">
+    Available for querying and analysis
+  </Step>
+  <Step title="Cleanup">
+    Archive or delete old traces as needed
+  </Step>
+</Steps>
+
+## Trace Schema
+
+Traces follow OpenTelemetry standard:
+
+```python
+class Span:
+    name: str              # "agent.run", "model.call", "tool.execute"
+    span_id: str           # Unique span ID
+    trace_id: str          # Trace ID (groups related spans)
+    parent_span_id: str    # Parent span ID (for nesting)
+    start_time: datetime   # When span started
+    end_time: datetime     # When span ended
+    duration: int          # Duration in milliseconds
+    status: str            # "ok", "error"
+    attributes: dict       # Span-specific data
+    events: list           # Events during span
+```
+
+Common attributes:
+```python
+# Agent spans
+attributes = {
+    "agent.id": "agent_123",
+    "agent.name": "Customer Service",
+    "agent.input": "user message",
+    "agent.output": "agent response",
+}
+
+# Model spans
+attributes = {
+    "llm.model": "gpt-5-mini",
+    "llm.provider": "openai",
+    "llm.token_count.prompt": 150,
+    "llm.token_count.completion": 200,
+    "llm.token_count.total": 350,
+    "llm.cost": 0.0015,
+}
+
+# Tool spans
+attributes = {
+    "tool.name": "search_database",
+    "tool.arguments": '{"query": "..." }',
+    "tool.result": "...",
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Evaluations" icon="chart-line" href="/evals/overview">
+    Use traces to evaluate agent performance
+  </Card>
+  <Card title="Learning" icon="brain" href="/learning/overview">
+    Analyze traces to identify learning opportunities
+  </Card>
+  <Card title="Guardrails" icon="shield" href="/guardrails/overview">
+    Monitor guardrail effectiveness with traces
+  </Card>
+  <Card title="Reasoning" icon="brain" href="/reasoning/overview">
+    Debug reasoning steps with detailed traces
+  </Card>
+</CardGroup>

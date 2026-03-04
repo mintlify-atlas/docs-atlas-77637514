@@ -1,0 +1,557 @@
+---
+title: Core Concepts
+description: Understand the fundamental building blocks of Agno
+---
+
+Agno provides a set of composable primitives for building agentic software. This guide explains each concept and how they work together.
+
+## Agent
+
+An **Agent** is an autonomous system that uses an LLM to make decisions, use tools, and accomplish tasks.
+
+### Basic Agent
+
+The simplest agent needs just a name and a model:
+
+```python
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+
+agent = Agent(
+    name="Research Assistant",
+    model=OpenAIChat(id="gpt-4o"),
+)
+
+response = agent.run("What is quantum computing?")
+print(response.content)
+```
+
+### Agent with Tools
+
+Agents become powerful when you give them tools:
+
+```python
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.duckduckgo import DuckDuckGoTools
+
+agent = Agent(
+    name="Research Assistant",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[DuckDuckGoTools()],
+    instructions="You are a research assistant. Search the web to find accurate, up-to-date information.",
+)
+
+agent.print_response("What are the latest developments in quantum computing?", stream=True)
+```
+
+### Key Agent Parameters
+
+- `name` - Identifies the agent in logs and UI
+- `model` - The LLM to use for reasoning
+- `tools` - List of tools the agent can call
+- `instructions` - System prompt that defines behavior
+- `db` - Database for storing conversation history
+- `knowledge` - Knowledge base for RAG
+- `add_history_to_context` - Include previous turns in context
+- `num_history_runs` - Number of previous turns to include
+- `markdown` - Format responses as markdown
+
+<Note>
+Agents are stateless by default. Add a `db` parameter to persist conversations across sessions.
+</Note>
+
+## Team
+
+A **Team** coordinates multiple specialized agents to solve complex problems.
+
+### How Teams Work
+
+1. The team leader receives a task
+2. It delegates subtasks to appropriate team members
+3. Members complete their tasks and return results
+4. The leader synthesizes results into a final answer
+
+### Example: Coding Team
+
+```python
+from agno.agent import Agent
+from agno.team import Team
+from agno.models.openai import OpenAIChat
+from agno.tools.coding import CodingTools
+
+# Specialized agents
+coder = Agent(
+    name="Coder",
+    role="Write clean, well-documented code",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[CodingTools(enable_write_file=True, enable_run_shell=True)],
+)
+
+reviewer = Agent(
+    name="Reviewer",
+    role="Review code for quality and bugs",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[CodingTools(enable_read_file=True, enable_write_file=False)],
+)
+
+# Team leader coordinates them
+team = Team(
+    name="Dev Team",
+    model=OpenAIChat(id="gpt-4o"),
+    members=[coder, reviewer],
+    instructions="""Coordinate the coder and reviewer to produce high-quality code.
+    1. Send tasks to the Coder
+    2. Send code to Reviewer for feedback
+    3. Iterate if needed
+    """,
+)
+
+team.print_response("Build a binary search function in Python", stream=True)
+```
+
+### When to Use Teams
+
+- **Complex tasks** that benefit from specialized roles
+- **Human-supervised workflows** where delegation is acceptable
+- **Exploratory tasks** where the exact steps aren't known upfront
+
+<Warning>
+Teams are less predictable than workflows because the LLM makes delegation decisions. For production automation with deterministic steps, use Workflows instead.
+</Warning>
+
+## Workflow
+
+A **Workflow** defines a deterministic sequence of steps to accomplish a task.
+
+### How Workflows Work
+
+Workflows execute steps in order:
+1. Each step receives the output of the previous step
+2. Steps can be agents, functions, or other workflows
+3. The final step's output is the workflow result
+
+### Example: Content Pipeline
+
+```python
+from agno.agent import Agent
+from agno.workflow import Workflow
+from agno.workflow.types import StepInput
+from agno.models.openai import OpenAIChat
+
+# Step 1: Writer agent
+writer = Agent(
+    name="Writer",
+    model=OpenAIChat(id="gpt-4o"),
+    instructions="Write engaging blog posts",
+)
+
+# Step 2: Editor agent
+editor = Agent(
+    name="Editor",
+    model=OpenAIChat(id="gpt-4o"),
+    instructions="Edit for clarity, grammar, and SEO",
+)
+
+# Step 3: Function to add metadata
+def add_metadata(step_input: StepInput):
+    content = step_input.previous_step_content
+    return f"---\nAuthor: AI Team\nDate: 2026-03-04\n---\n\n{content}"
+
+# Create workflow
+workflow = Workflow(
+    name="Blog Pipeline",
+    steps=[writer, editor, add_metadata],
+)
+
+result = workflow.run("Write a blog post about the future of AI")
+print(result.content)
+```
+
+### When to Use Workflows
+
+- **Production automation** with predictable steps
+- **Multi-stage processing** (write → review → publish)
+- **Data pipelines** with transformation steps
+- **Any deterministic process** where you know the steps upfront
+
+## AgentOS
+
+**AgentOS** is the runtime that turns your agents, teams, and workflows into production APIs.
+
+### Basic AgentOS Setup
+
+```python
+from agno.agent import Agent
+from agno.os import AgentOS
+from agno.db.postgres import PostgresDb
+from agno.models.openai import OpenAIChat
+
+db = PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:5532/ai")
+
+agent = Agent(
+    name="Assistant",
+    model=OpenAIChat(id="gpt-4o"),
+    db=db,
+    add_history_to_context=True,
+)
+
+agent_os = AgentOS(
+    agents=[agent],
+    tracing=True,
+)
+
+app = agent_os.get_app()
+```
+
+Run it:
+
+```bash
+uvicorn app:app --reload
+```
+
+### What AgentOS Provides
+
+- **REST APIs** for chat, sessions, and management
+- **WebSocket support** for real-time streaming
+- **Per-user, per-session isolation**
+- **Authentication and authorization** (RBAC)
+- **OpenTelemetry tracing**
+- **Scheduled tasks** with cron expressions
+- **Web UI** at [os.agno.com](https://os.agno.com)
+
+### AgentOS Features
+
+<CardGroup cols={2}>
+  <Card title="Session Management" icon="clock">
+    Each user conversation is isolated in its own session
+  </Card>
+  <Card title="Streaming" icon="signal-stream">
+    Real-time streaming of reasoning and responses
+  </Card>
+  <Card title="Tracing" icon="chart-line">
+    Full observability with OpenTelemetry
+  </Card>
+  <Card title="Scheduling" icon="calendar">
+    Run agents on schedules (daily reports, monitoring, etc.)
+  </Card>
+</CardGroup>
+
+## Tools
+
+**Tools** give agents the ability to take actions and interact with the world.
+
+### Built-in Tools
+
+Agno includes 100+ integrations:
+
+```python
+from agno.tools.duckduckgo import DuckDuckGoTools  # Web search
+from agno.tools.github import GitHubTools            # GitHub API
+from agno.tools.coding import CodingTools            # File operations
+from agno.tools.mcp import MCPTools                  # Model Context Protocol
+from agno.tools.yfinance import YFinanceTools        # Financial data
+```
+
+### Custom Tools
+
+Create custom tools by writing Python functions:
+
+```python
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+
+def get_weather(city: str) -> str:
+    """Get the current weather for a city.
+    
+    Args:
+        city: Name of the city
+    
+    Returns:
+        Weather description
+    """
+    # Your weather API logic here
+    return f"Sunny and 72°F in {city}"
+
+agent = Agent(
+    name="Weather Agent",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[get_weather],
+)
+
+agent.print_response("What's the weather in San Francisco?")
+```
+
+<Note>
+Agno automatically converts function docstrings into tool descriptions for the LLM.
+</Note>
+
+## Knowledge
+
+**Knowledge** provides agents with searchable context through RAG (Retrieval Augmented Generation).
+
+### Basic Knowledge Setup
+
+```python
+from agno.agent import Agent
+from agno.knowledge import Knowledge
+from agno.vectordb.pgvector import PgVector
+from agno.db.postgres import PostgresDb
+from agno.models.openai import OpenAIChat
+from agno.knowledge.embedder.openai import OpenAIEmbedder
+
+db = PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:5532/ai")
+
+knowledge = Knowledge(
+    name="Product Docs",
+    vector_db=PgVector(
+        db_url="postgresql+psycopg://ai:ai@localhost:5532/ai",
+        table_name="product_docs",
+        embedder=OpenAIEmbedder(id="text-embedding-3-small"),
+    ),
+    contents_db=db,
+)
+
+# Load documents
+knowledge.insert(text_content="Your product documentation here...")
+
+# Create agent with knowledge
+agent = Agent(
+    name="Product Expert",
+    model=OpenAIChat(id="gpt-4o"),
+    knowledge=knowledge,
+    search_knowledge=True,
+)
+
+agent.print_response("How do I install the product?")
+```
+
+### How Knowledge Works
+
+1. Documents are chunked and embedded
+2. Embeddings are stored in a vector database
+3. When a user asks a question:
+   - The question is embedded
+   - Similar chunks are retrieved
+   - Context is added to the agent's prompt
+4. The agent answers using the retrieved context
+
+### Supported Vector Databases
+
+- PgVector (PostgreSQL)
+- ChromaDB
+- Qdrant
+- Pinecone
+- Weaviate
+- LanceDB
+- Milvus
+- And more...
+
+## Memory
+
+**Memory** allows agents to learn and remember information across conversations.
+
+### Types of Memory
+
+#### 1. Session Memory (Conversation History)
+
+Store conversation history in a database:
+
+```python
+from agno.agent import Agent
+from agno.db.postgres import PostgresDb
+from agno.models.openai import OpenAIChat
+
+db = PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:5532/ai")
+
+agent = Agent(
+    name="Assistant",
+    model=OpenAIChat(id="gpt-4o"),
+    db=db,
+    add_history_to_context=True,
+    num_history_runs=5,  # Remember last 5 turns
+)
+
+# First conversation
+agent.run("My name is Alice", user_id="user_1", session_id="session_1")
+
+# Later conversation (same session)
+agent.run("What's my name?", user_id="user_1", session_id="session_1")
+# Response: "Your name is Alice"
+```
+
+#### 2. Agentic Memory (User Profiles)
+
+The agent automatically builds and maintains user profiles:
+
+```python
+from agno.agent import Agent
+from agno.db.postgres import PostgresDb
+from agno.models.openai import OpenAIChat
+
+db = PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:5532/ai")
+
+agent = Agent(
+    name="Personal Assistant",
+    model=OpenAIChat(id="gpt-4o"),
+    db=db,
+    enable_agentic_memory=True,
+)
+
+# Agent learns about the user over time
+agent.run("I prefer dark mode", user_id="user_1")
+agent.run("I'm a vegetarian", user_id="user_1")
+
+# Later, in a different session
+agent.run("Recommend a restaurant", user_id="user_1")
+# Agent remembers preferences and suggests vegetarian options
+```
+
+#### 3. Learned Knowledge (Continuous Learning)
+
+Agents can learn insights and improve over time:
+
+```python
+from agno.agent import Agent
+from agno.db.postgres import PostgresDb
+from agno.knowledge import Knowledge
+from agno.learn import LearningMachine, LearnedKnowledgeConfig, LearningMode
+from agno.models.openai import OpenAIChat
+from agno.vectordb.pgvector import PgVector
+
+db = PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:5532/ai")
+
+learned_knowledge = Knowledge(
+    vector_db=PgVector(
+        db_url="postgresql+psycopg://ai:ai@localhost:5532/ai",
+        table_name="learnings",
+    ),
+    contents_db=db,
+)
+
+agent = Agent(
+    name="Learning Agent",
+    model=OpenAIChat(id="gpt-4o"),
+    db=db,
+    learning=LearningMachine(
+        knowledge=learned_knowledge,
+        learned_knowledge=LearnedKnowledgeConfig(
+            mode=LearningMode.AGENTIC,
+        ),
+    ),
+)
+
+# Agent learns patterns and insights over time
+# Interaction 1,000 is better than interaction 1
+```
+
+## Putting It All Together
+
+Here's how all the concepts work together in a production system:
+
+```python
+from agno.agent import Agent
+from agno.team import Team
+from agno.workflow import Workflow
+from agno.os import AgentOS
+from agno.db.postgres import PostgresDb
+from agno.knowledge import Knowledge
+from agno.vectordb.pgvector import PgVector
+from agno.models.openai import OpenAIChat
+from agno.tools.duckduckgo import DuckDuckGoTools
+
+# Database
+db = PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:5532/ai")
+
+# Knowledge base
+knowledge = Knowledge(
+    vector_db=PgVector(db_url="postgresql+psycopg://ai:ai@localhost:5532/ai"),
+    contents_db=db,
+)
+
+# Agents with different specializations
+researcher = Agent(
+    name="Researcher",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[DuckDuckGoTools()],
+    knowledge=knowledge,
+    db=db,
+)
+
+writer = Agent(
+    name="Writer",
+    model=OpenAIChat(id="gpt-4o"),
+    knowledge=knowledge,
+    db=db,
+)
+
+# Team that coordinates agents
+team = Team(
+    name="Content Team",
+    model=OpenAIChat(id="gpt-4o"),
+    members=[researcher, writer],
+    db=db,
+)
+
+# Workflow with deterministic steps
+workflow = Workflow(
+    name="Research Pipeline",
+    steps=[researcher, writer],
+    db=db,
+)
+
+# Production API
+agent_os = AgentOS(
+    agents=[researcher, writer],
+    teams=[team],
+    workflows=[workflow],
+    tracing=True,
+)
+
+app = agent_os.get_app()
+```
+
+## The 5 Levels of Agentic Software
+
+Agno supports a progression from simple to sophisticated:
+
+<Steps>
+  <Step title="Level 1: Tools">
+    Single agent with tools. Stateless, no memory.
+  </Step>
+  
+  <Step title="Level 2: Storage + Knowledge">
+    Add database for history and vector DB for RAG.
+  </Step>
+  
+  <Step title="Level 3: Memory + Learning">
+    Agent learns user preferences and improves over time.
+  </Step>
+  
+  <Step title="Level 4: Teams">
+    Multiple specialized agents coordinated by a team leader.
+  </Step>
+  
+  <Step title="Level 5: Production API">
+    Full AgentOS with PostgreSQL, tracing, and web UI.
+  </Step>
+</Steps>
+
+See the [cookbook/levels_of_agentic_software](https://github.com/agno-agi/agno/tree/main/cookbook/levels_of_agentic_software) for working examples of each level.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Build an Agent" icon="robot" href="/guides/agents">
+    Deep dive into agent configuration and patterns
+  </Card>
+  <Card title="Add Tools" icon="wrench" href="/guides/tools">
+    Learn about built-in tools and custom functions
+  </Card>
+  <Card title="RAG with Knowledge" icon="database" href="/guides/knowledge">
+    Set up vector search and document retrieval
+  </Card>
+  <Card title="Deploy with AgentOS" icon="server" href="/guides/agent-os">
+    Run your system in production
+  </Card>
+</CardGroup>

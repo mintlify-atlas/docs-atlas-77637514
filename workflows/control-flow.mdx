@@ -1,0 +1,56 @@
+---
+title: "Workflow control flow"
+description: "Conditionals, loops, and parallel execution"
+---
+
+Workflows support advanced control flow for complex pipelines.
+
+## Conditional execution
+
+```python
+from agno.workflow import Workflow, Condition
+
+workflow = Workflow(
+    steps=[
+        Step(agent=classifier, name="classify"),
+        Condition(
+            if_condition="output.category == 'urgent'",
+            then_steps=[Step(agent=urgent_handler)],
+            else_steps=[Step(agent=normal_handler)]
+        )
+    ]
+)
+```
+
+## Parallel execution
+
+```python
+from agno.workflow import Parallel
+
+workflow = Workflow(
+    steps=[
+        Parallel([
+            Step(agent=agent1),
+            Step(agent2),
+            Step(agent3)
+        ])
+    ]
+)
+```
+
+## Loops
+
+```python
+from agno.workflow import Loop
+
+workflow = Workflow(
+    steps=[
+        Loop(
+            steps=[Step(agent=processor)],
+            max_iterations=5
+        )
+    ]
+)
+```
+
+See [cookbook examples](/cookbook/workflows) for complete patterns.

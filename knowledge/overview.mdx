@@ -1,0 +1,44 @@
+---
+title: "Knowledge overview"
+description: "Add RAG and document retrieval to your agents"
+---
+
+Knowledge bases allow agents to ground their responses in your documents. This is essential for building agents that can answer questions about your specific data.
+
+## What is a knowledge base?
+
+A knowledge base stores and retrieves documents:
+- **Documents** are chunked and embedded
+- **Vector database** stores embeddings for similarity search
+- **Agents** can search the knowledge base with agentic RAG
+
+## Quick example
+
+```python
+from agno.agent import Agent
+from agno.knowledge.pdf import PDFKnowledge
+from agno.vectordb.pgvector import PgVector
+
+# Create knowledge base
+knowledge = PDFKnowledge(
+    path="docs/",
+    vector_db=PgVector(
+        table_name="agno_docs",
+        db_url="postgresql://localhost/agno"
+    )
+)
+
+# Load documents
+knowledge.load(recreate=False)
+
+# Create agent with knowledge
+agent = Agent(
+    knowledge=knowledge,
+    search_knowledge=True,
+    add_knowledge_to_context=True
+)
+
+response = agent.run("What is Agno?")
+```
+
+See [cookbook examples](/cookbook/quickstart) for complete patterns.

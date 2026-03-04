@@ -1,0 +1,263 @@
+---
+title: MemoryManager
+description: Manage long-term user memories for agents
+---
+
+The `MemoryManager` class enables agents to create, update, and recall long-term memories about users across sessions.
+
+## Constructor
+
+```python
+from agno.memory import MemoryManager
+from agno.db.sqlite import SQLiteDb
+
+db = SQLiteDb(db_file="agent.db")
+
+memory_manager = MemoryManager(
+    model="gpt-4o",
+    db=db
+)
+```
+
+## Parameters
+
+<ParamField path="model" type="Model | str" default="None">
+  Model used for memory extraction and management. Defaults to gpt-4o if not provided.
+</ParamField>
+
+<ParamField path="db" type="BaseDb | AsyncBaseDb" required>
+  Database to store memories.
+</ParamField>
+
+<ParamField path="system_message" type="str" default="None">
+  Custom system message for the memory manager.
+</ParamField>
+
+<ParamField path="memory_capture_instructions" type="str" default="None">
+  Custom instructions for capturing memories.
+</ParamField>
+
+<ParamField path="additional_instructions" type="str" default="None">
+  Additional instructions appended to the system message.
+</ParamField>
+
+<ParamField path="add_memories" type="bool" default="True">
+  Whether to allow adding new memories.
+</ParamField>
+
+<ParamField path="update_memories" type="bool" default="True">
+  Whether to allow updating existing memories.
+</ParamField>
+
+<ParamField path="delete_memories" type="bool" default="False">
+  Whether to allow deleting memories.
+</ParamField>
+
+<ParamField path="clear_memories" type="bool" default="False">
+  Whether to allow clearing all memories.
+</ParamField>
+
+<ParamField path="debug_mode" type="bool" default="False">
+  Enable debug logging.
+</ParamField>
+
+## Methods
+
+### get_user_memories()
+
+Get all memories for a user.
+
+```python
+memories = memory_manager.get_user_memories(user_id="user_1")
+
+for memory in memories:
+    print(f"{memory.topic}: {memory.content}")
+```
+
+### aget_user_memories()
+
+Async version of `get_user_memories()`.
+
+```python
+memories = await memory_manager.aget_user_memories(user_id="user_1")
+```
+
+### add_user_memory()
+
+Add a new memory.
+
+```python
+from agno.db.schemas import UserMemory
+
+memory = UserMemory(
+    content="User prefers dark mode",
+    topic="preferences"
+)
+
+memory_id = memory_manager.add_user_memory(
+    memory=memory,
+    user_id="user_1"
+)
+```
+
+### delete_user_memory()
+
+Delete a specific memory.
+
+```python
+memory_manager.delete_user_memory(
+    memory_id="mem_123",
+    user_id="user_1"
+)
+```
+
+### clear_user_memories()
+
+Clear all memories for a user.
+
+```python
+memory_manager.clear_user_memories(user_id="user_1")
+```
+
+### clear()
+
+Clear all memories from the database.
+
+```python
+memory_manager.clear()
+```
+
+## Agent Integration
+
+```python
+from agno import Agent
+from agno.memory import MemoryManager
+from agno.db.sqlite import SQLiteDb
+
+db = SQLiteDb(db_file="agent.db")
+
+agent = Agent(
+    model="gpt-4o",
+    db=db,
+    memory_manager=MemoryManager(db=db),
+    update_memory_on_run=True,
+    add_memories_to_context=True
+)
+
+# Agent automatically creates and recalls memories
+response = agent.run("My favorite color is blue", user_id="user_1")
+response = agent.run("What's my favorite color?", user_id="user_1")
+```
+
+## Example Usage
+
+<CodeGroup>
+```python Basic Usage
+from agno import Agent
+from agno.memory import MemoryManager
+from agno.db.sqlite import SQLiteDb
+
+db = SQLiteDb(db_file="memories.db")
+
+agent = Agent(
+    model="gpt-4o",
+    db=db,
+    memory_manager=MemoryManager(db=db),
+    update_memory_on_run=True,
+    add_memories_to_context=True
+)
+
+# Conversation 1
+response = agent.run("I love pizza", user_id="alice")
+
+# Conversation 2 (different session, same user)
+response = agent.run(
+    "What should I have for dinner?",
+    user_id="alice",
+    session_id="session_2"
+)
+# Agent recalls: "I remember you love pizza!"
+```
+
+```python Custom Instructions
+from agno.memory import MemoryManager
+
+memory_manager = MemoryManager(
+    db=db,
+    memory_capture_instructions="""
+    Focus on capturing:
+    - User preferences
+    - Important facts about the user
+    - User's goals and objectives
+    """
+)
+```
+
+```python Manual Memory Management
+from agno.memory import MemoryManager
+from agno.db.schemas import UserMemory
+
+memory_manager = MemoryManager(db=db)
+
+# Add memory manually
+memory_manager.add_user_memory(
+    memory=UserMemory(
+        content="Vegetarian, allergic to nuts",
+        topic="dietary_restrictions"
+    ),
+    user_id="user_1"
+)
+
+# Retrieve memories
+memories = memory_manager.get_user_memories(user_id="user_1")
+
+# Delete a memory
+memory_manager.delete_user_memory(
+    memory_id="mem_123",
+    user_id="user_1"
+)
+```
+
+```python Multi-user
+from agno import Agent
+from agno.memory import MemoryManager
+
+memory_manager = MemoryManager(db=db)
+
+agent = Agent(
+    model="gpt-4o",
+    db=db,
+    memory_manager=memory_manager,
+    update_memory_on_run=True,
+    add_memories_to_context=True
+)
+
+# Each user has separate memories
+agent.run("I prefer emails", user_id="alice")
+agent.run("I prefer phone calls", user_id="bob")
+
+# Memories are user-specific
+alice_memories = memory_manager.get_user_memories(user_id="alice")
+bob_memories = memory_manager.get_user_memories(user_id="bob")
+```
+</CodeGroup>
+
+## UserMemory Schema
+
+Memories are stored as `UserMemory` objects:
+
+- `memory_id`: Unique identifier
+- `user_id`: User the memory belongs to
+- `content`: The memory content
+- `topic`: Optional topic/category
+- `metadata`: Additional metadata
+- `updated_at`: Last update timestamp
+
+## Best Practices
+
+1. **Enable memory**: Set `update_memory_on_run=True` for automatic memory creation
+2. **Add to context**: Set `add_memories_to_context=True` for memory recall
+3. **User IDs**: Always provide user_id for multi-user applications
+4. **Privacy**: Implement proper access controls for user memories
+5. **Cleanup**: Provide users a way to view and delete their memories
+6. **Topics**: Use topics to organize different types of memories

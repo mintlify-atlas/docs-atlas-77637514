@@ -1,0 +1,378 @@
+---
+title: Storage Overview
+description: Choose the right database adapter for storing sessions, memories, and agent data in Agno
+---
+
+Agno provides a flexible storage layer that supports multiple database backends for persisting agent sessions, user memories, and other data.
+
+## What Gets Stored?
+
+Agno's database adapters store:
+
+- **Sessions**: Conversation history and chat state
+- **User Memories**: Long-term facts about users
+- **Metrics**: Performance and usage data
+- **Knowledge**: Document content for RAG (Retrieval-Augmented Generation)
+- **Evaluations**: Test results and benchmarks
+- **Cultural Knowledge**: Shared learnings across agents
+- **Traces & Spans**: Observability and debugging data
+
+## Supported Databases
+
+Agno supports multiple database backends:
+
+<CardGroup cols={2}>
+  <Card title="PostgreSQL" icon="database">
+    **Recommended for production**
+    
+    Full-featured, scalable, supports all Agno features
+  </Card>
+  <Card title="SQLite" icon="hard-drive">
+    **Best for development**
+    
+    Serverless, file-based, easy setup
+  </Card>
+  <Card title="MongoDB" icon="leaf">
+    **Document-oriented**
+    
+    Flexible schema, good for unstructured data
+  </Card>
+  <Card title="DynamoDB" icon="aws">
+    **AWS managed**
+    
+    Serverless, auto-scaling, cloud-native
+  </Card>
+  <Card title="In-Memory" icon="memory">
+    **Testing & development**
+    
+    No persistence, fastest performance
+  </Card>
+  <Card title="Redis" icon="bolt">
+    **Caching & sessions**
+    
+    High-performance, key-value store
+  </Card>
+</CardGroup>
+
+## Quick Start
+
+### PostgreSQL (Production)
+
+```python
+from agno.agent import Agent
+from agno.db.postgres import PostgresDb
+
+db = PostgresDb(
+    db_url="postgresql+psycopg://user:password@localhost:5432/agno"
+)
+
+agent = Agent(db=db)
+```
+
+### SQLite (Development)
+
+```python
+from agno.agent import Agent
+from agno.db.sqlite import SqliteDb
+
+db = SqliteDb(
+    db_file="tmp/agent.db"
+)
+
+agent = Agent(db=db)
+```
+
+### In-Memory (Testing)
+
+```python
+from agno.agent import Agent
+from agno.db.in_memory import InMemoryDb
+
+db = InMemoryDb()
+
+agent = Agent(db=db)
+```
+
+## Database Selection Guide
+
+Choose the right database for your needs:
+
+### Production Applications
+
+**Use PostgreSQL** for production workloads:
+
+- Full feature support
+- Excellent performance at scale
+- ACID transactions
+- Rich querying capabilities
+- Battle-tested reliability
+
+```python
+from agno.db.postgres import PostgresDb
+
+db = PostgresDb(
+    db_url="postgresql+psycopg://user:password@localhost:5432/agno",
+    session_table="agno_sessions",
+    memory_table="agno_memories",
+)
+```
+
+### Development & Prototyping
+
+**Use SQLite** for local development:
+
+- No server setup required
+- Single file database
+- Perfect for testing
+- Easy to reset and share
+
+```python
+from agno.db.sqlite import SqliteDb
+
+db = SqliteDb(
+    db_file="tmp/dev.db"
+)
+```
+
+### Cloud-Native Applications
+
+**Use DynamoDB** for AWS deployments:
+
+- Fully managed, serverless
+- Auto-scaling
+- Pay per use
+- High availability
+
+```python
+from agno.db import DynamoDb
+
+db = DynamoDb(
+    table_name="agno-sessions",
+    region="us-east-1"
+)
+```
+
+### Document-Based Applications
+
+**Use MongoDB** for flexible schemas:
+
+- Schema-less design
+- Good for evolving data models
+- JSON-like documents
+- Horizontal scaling
+
+```python
+from agno.db.mongo import MongoDb
+
+db = MongoDb(
+    db_url="mongodb://localhost:27017",
+    db_name="agno"
+)
+```
+
+### Testing & Temporary Data
+
+**Use In-Memory** for tests:
+
+- Fastest performance
+- No persistence needed
+- Automatic cleanup
+- Perfect for unit tests
+
+```python
+from agno.db.in_memory import InMemoryDb
+
+db = InMemoryDb()
+```
+
+## Database Features Comparison
+
+| Feature | PostgreSQL | SQLite | MongoDB | DynamoDB | In-Memory | Redis |
+|---------|-----------|--------|---------|----------|-----------|-------|
+| **Sessions** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Memories** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Knowledge** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Metrics** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Async Support** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Production Ready** | ✅ | ⚠️ | ✅ | ✅ | ❌ | ⚠️ |
+| **Serverless** | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| **Setup Difficulty** | Medium | Easy | Medium | Medium | Easy | Easy |
+
+## Custom Table Names
+
+Customize table names for all databases:
+
+```python
+db = PostgresDb(
+    db_url="postgresql+psycopg://user:password@localhost:5432/agno",
+    session_table="my_sessions",
+    memory_table="my_memories",
+    metrics_table="my_metrics",
+    eval_table="my_evals",
+    knowledge_table="my_knowledge",
+)
+```
+
+## Async vs Sync
+
+Most databases support both sync and async operations:
+
+<CodeGroup>
+
+```python Sync
+from agno.db.postgres import PostgresDb
+
+db = PostgresDb(db_url="postgresql+psycopg://...")
+
+# Sync operations
+session = db.get_session(session_id="123")
+memories = db.get_user_memories(user_id="alice")
+```
+
+```python Async
+from agno.db.postgres import AsyncPostgresDb
+import asyncio
+
+db = AsyncPostgresDb(db_url="postgresql+psycopg://...")
+
+async def main():
+    # Async operations
+    session = await db.get_session(session_id="123")
+    memories = await db.get_user_memories(user_id="alice")
+
+asyncio.run(main())
+```
+
+</CodeGroup>
+
+<Note>
+When using async databases, you must use async agent methods (e.g., `aprint_response()`, `arun()`).
+</Note>
+
+## Database Initialization
+
+Tables are created automatically on first use:
+
+```python
+from agno.db.postgres import PostgresDb
+
+# Tables are created automatically
+db = PostgresDb(db_url="postgresql+psycopg://...")
+
+# Or create explicitly
+db._create_all_tables()
+```
+
+## Database Cleanup
+
+Close database connections properly:
+
+```python
+# Close connections when done
+db.close()
+
+# Or use context manager (if supported)
+with PostgresDb(db_url="...") as db:
+    agent = Agent(db=db)
+    agent.print_response("Hello")
+# Automatically closed
+```
+
+## Migration Between Databases
+
+You can migrate data between different database backends:
+
+```python
+from agno.db.sqlite import SqliteDb
+from agno.db.postgres import PostgresDb
+from agno.db.base import SessionType
+
+# Source database
+source_db = SqliteDb(db_file="dev.db")
+
+# Destination database
+dest_db = PostgresDb(db_url="postgresql+psycopg://...")
+
+# Migrate sessions
+sessions = source_db.get_sessions(
+    session_type=SessionType.AGENT,
+    limit=1000
+)
+
+for session in sessions:
+    dest_db.upsert_session(session)
+
+# Migrate memories
+memories = source_db.get_user_memories()
+for memory in memories:
+    dest_db.upsert_user_memory(memory)
+```
+
+## Environment Variables
+
+Use environment variables for database configuration:
+
+```python
+import os
+from agno.db.postgres import PostgresDb
+
+db = PostgresDb(
+    db_url=os.getenv("DATABASE_URL")
+)
+```
+
+```bash .env
+DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/agno
+```
+
+## Best Practices
+
+<Warning>
+**SQLite for Development Only**: While SQLite is great for development, it's not recommended for production applications with multiple concurrent users.
+</Warning>
+
+1. **Use PostgreSQL for production**: Best performance and feature support
+2. **Use SQLite for development**: Easy setup, no server required
+3. **Use In-Memory for tests**: Fast, isolated, no cleanup needed
+4. **Close connections**: Always close database connections when done
+5. **Environment variables**: Store database URLs in environment variables, not code
+6. **Table names**: Use custom table names to avoid conflicts in shared databases
+7. **Backup regularly**: Implement backup strategies for production data
+
+## Example: Switching Databases
+
+The same agent code works with any database:
+
+```python
+from agno.agent import Agent
+
+# Just change the database
+# from agno.db.sqlite import SqliteDb
+# db = SqliteDb(db_file="dev.db")
+
+from agno.db.postgres import PostgresDb
+db = PostgresDb(db_url="postgresql+psycopg://...")
+
+# Everything else stays the same
+agent = Agent(
+    db=db,
+    session_id="chat",
+    update_memory_on_run=True,
+)
+
+agent.print_response("Hello!")
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Database Configuration" icon="gear" href="/storage/databases">
+    Detailed configuration for each database
+  </Card>
+  <Card title="User Memories" icon="brain" href="/memory/user-memories">
+    Learn how to use stored memories
+  </Card>
+  <Card title="Session State" icon="messages" href="/memory/session-state">
+    Manage persistent sessions
+  </Card>
+</CardGroup>

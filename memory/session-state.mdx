@@ -1,0 +1,453 @@
+---
+title: Session State
+description: Manage conversation history, session summaries, and chat continuity across interactions
+---
+
+Session state in Agno allows agents to maintain conversation history and context across multiple interactions with users. This enables natural, continuous conversations that remember what was discussed.
+
+## What is Session State?
+
+Session state includes:
+
+- **Conversation History**: All messages exchanged in a session
+- **Session Summaries**: Condensed summaries of long conversations
+- **Session Metadata**: User ID, session ID, timestamps, and run information
+
+## Persistent Sessions
+
+To enable persistent sessions, provide a database and session ID:
+
+```python
+from agno.agent import Agent
+from agno.db.postgres import PostgresDb
+
+agent = Agent(
+    db=PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:5532/ai"),
+    session_id="user_123_session",
+    add_history_to_context=True,
+)
+
+# First message
+agent.print_response("Hi, my name is Alice")
+
+# Second message - agent remembers the conversation
+agent.print_response("What's my name?")  # Response: "Your name is Alice"
+```
+
+## Session IDs
+
+Session IDs allow you to manage multiple conversations:
+
+<CodeGroup>
+
+```python Single Session
+from uuid import uuid4
+
+session_id = str(uuid4())
+
+agent.print_response(
+    "Tell me about space",
+    session_id=session_id
+)
+
+agent.print_response(
+    "Tell me more",  # Continues the space conversation
+    session_id=session_id
+)
+```
+
+```python Multiple Sessions
+user_id = "alice@example.com"
+
+# Work session
+agent.print_response(
+    "Help me write a business proposal",
+    user_id=user_id,
+    session_id="work_session"
+)
+
+# Personal session
+agent.print_response(
+    "Recommend a recipe for dinner",
+    user_id=user_id,
+    session_id="personal_session"
+)
+
+# Continue work session
+agent.print_response(
+    "Can you make that proposal more formal?",
+    user_id=user_id,
+    session_id="work_session"  # Remembers the business proposal
+)
+```
+
+</CodeGroup>
+
+## Adding History to Context
+
+Control whether conversation history is included in the agent's context:
+
+<Tabs>
+  <Tab title="With History">
+    ```python
+    agent = Agent(
+        db=db,
+        session_id="chat_session",
+        add_history_to_context=True,  # Default
+    )
+    
+    agent.print_response("My favorite color is blue")
+    agent.print_response("What's my favorite color?")  # Works
+    ```
+  </Tab>
+  <Tab title="Without History">
+    ```python
+    agent = Agent(
+        db=db,
+        session_id="chat_session",
+        add_history_to_context=False,
+    )
+    
+    agent.print_response("My favorite color is blue")
+    agent.print_response("What's my favorite color?")  # Won't remember
+    ```
+  </Tab>
+</Tabs>
+
+## Session Summaries
+
+For long conversations, use session summaries to reduce token usage while maintaining context:
+
+### Automatic Summaries
+
+```python
+from agno.agent import Agent
+from agno.db.postgres import PostgresDb
+
+agent = Agent(
+    db=PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:5532/ai"),
+    session_id="long_conversation",
+    enable_session_summaries=True,
+    add_session_summary_to_context=True,
+)
+
+# After many messages, the agent automatically creates summaries
+for i in range(50):
+    agent.print_response(f"Message {i}")
+
+# Summary is used instead of full history to save tokens
+```
+
+### Custom Summary Manager
+
+```python
+from agno.session.summary import SessionSummaryManager
+from agno.models.openai import OpenAIChat
+
+summary_manager = SessionSummaryManager(
+    model=OpenAIChat(id="gpt-4o-mini")
+)
+
+agent = Agent(
+    db=db,
+    session_id="session_123",
+    session_summary_manager=summary_manager,
+    add_session_summary_to_context=True,
+)
+```
+
+## Managing Sessions
+
+### Retrieve Session Data
+
+```python
+from agno.db.base import SessionType
+
+# Get a specific session
+session = db.get_session(
+    session_id="session_123",
+    session_type=SessionType.AGENT,
+    user_id="alice@example.com"
+)
+
+if session:
+    print(f"Session: {session.session_id}")
+    print(f"Messages: {len(session.messages)}")
+    print(f"Created: {session.created_at}")
+```
+
+### List All Sessions
+
+```python
+# Get all sessions for a user
+sessions = db.get_sessions(
+    session_type=SessionType.AGENT,
+    user_id="alice@example.com",
+    limit=10,
+    sort_by="created_at",
+    sort_order="desc"
+)
+
+for session in sessions:
+    print(f"{session.session_id}: {len(session.messages)} messages")
+```
+
+### Rename Session
+
+```python
+updated_session = db.rename_session(
+    session_id="session_123",
+    session_type=SessionType.AGENT,
+    session_name="Product Discussion",
+    user_id="alice@example.com"
+)
+```
+
+### Delete Sessions
+
+<CodeGroup>
+
+```python Delete Single Session
+db.delete_session(
+    session_id="session_123",
+    user_id="alice@example.com"
+)
+```
+
+```python Delete Multiple Sessions
+db.delete_sessions(
+    session_ids=["session_1", "session_2", "session_3"],
+    user_id="alice@example.com"
+)
+```
+
+</CodeGroup>
+
+## Session Types
+
+Agno supports different session types:
+
+<Tabs>
+  <Tab title="Agent Sessions">
+    ```python
+    from agno.agent import Agent
+    
+    agent = Agent(
+        db=db,
+        session_id="agent_session",
+    )
+    
+    # Session type is automatically AGENT
+    agent.print_response("Hello")
+    ```
+  </Tab>
+  <Tab title="Team Sessions">
+    ```python
+    from agno.team import Team
+    
+    team = Team(
+        members=[agent1, agent2],
+        db=db,
+        session_id="team_session",
+    )
+    
+    # Session type is automatically TEAM
+    team.print_response("Solve this problem")
+    ```
+  </Tab>
+  <Tab title="Workflow Sessions">
+    ```python
+    from agno.workflow import Workflow
+    
+    workflow = Workflow(
+        db=db,
+        session_id="workflow_session",
+    )
+    
+    # Session type is automatically WORKFLOW
+    workflow.run(input_data)
+    ```
+  </Tab>
+</Tabs>
+
+## Complete Example: Multi-User Multi-Session
+
+Here's a complete example showing multiple users with multiple sessions:
+
+```python cookbook/11_memory/05_multi_user_multi_session_chat.py:43
+import asyncio
+from agno.agent import Agent
+from agno.db.postgres import PostgresDb
+
+db = PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:5532/ai")
+
+chat_agent = Agent(
+    db=db,
+    update_memory_on_run=True,
+    add_history_to_context=True,
+)
+
+async def multi_user_chat():
+    # User 1, Session 1
+    await chat_agent.aprint_response(
+        "My name is Mark and I like anime",
+        user_id="mark@example.com",
+        session_id="mark_session_1"
+    )
+    
+    # User 1, Session 2 (different conversation)
+    await chat_agent.aprint_response(
+        "I'm going to the movies tonight",
+        user_id="mark@example.com",
+        session_id="mark_session_2"
+    )
+    
+    # User 2, Session 1
+    await chat_agent.aprint_response(
+        "Hi, my name is John",
+        user_id="john@example.com",
+        session_id="john_session_1"
+    )
+    
+    # Back to User 1, Session 1
+    await chat_agent.aprint_response(
+        "What do you suggest I do this weekend?",
+        user_id="mark@example.com",
+        session_id="mark_session_1"  # Remembers Mark likes anime
+    )
+
+asyncio.run(multi_user_chat())
+```
+
+## Session Filtering
+
+Query sessions with advanced filters:
+
+```python
+from datetime import datetime, timedelta
+
+# Get sessions from the last 7 days
+start_time = int((datetime.now() - timedelta(days=7)).timestamp())
+sessions = db.get_sessions(
+    session_type=SessionType.AGENT,
+    user_id="alice@example.com",
+    start_timestamp=start_time,
+    limit=20
+)
+
+# Search by session name
+sessions = db.get_sessions(
+    session_type=SessionType.AGENT,
+    session_name="Product Discussion",
+    user_id="alice@example.com"
+)
+```
+
+## Session Schema
+
+The Session object contains:
+
+```python
+class Session:
+    session_id: str                    # Unique session identifier
+    user_id: Optional[str]             # User this session belongs to
+    session_type: SessionType          # AGENT, TEAM, or WORKFLOW
+    session_name: Optional[str]        # Human-readable name
+    messages: List[Message]            # Conversation history
+    summary: Optional[str]             # Session summary
+    created_at: int                    # Unix timestamp
+    updated_at: int                    # Unix timestamp
+    component_id: Optional[str]        # Agent/Team/Workflow ID
+```
+
+## Memory vs Session State
+
+Understand the difference:
+
+| Feature | User Memories | Session State |
+|---------|--------------|---------------|
+| **Scope** | Cross-session, long-term | Single session |
+| **Content** | Extracted facts about user | Full conversation history |
+| **Purpose** | Personalization | Conversation continuity |
+| **Storage** | Memories table | Sessions table |
+| **Example** | "User likes pizza" | "User: I like pizza\nAgent: Great choice!" |
+
+### Using Both Together
+
+```python
+agent = Agent(
+    db=db,
+    session_id="chat_session",
+    add_history_to_context=True,      # Session state
+    update_memory_on_run=True,         # User memories
+)
+
+# Session state: remembers this conversation
+# User memories: extracts "user likes pizza"
+agent.print_response(
+    "I love pizza, especially margherita",
+    user_id="alice@example.com"
+)
+
+# New session - no conversation history
+# But memories persist!
+agent.print_response(
+    "What food do I like?",  # Agent: "You like pizza"
+    user_id="alice@example.com",
+    session_id="new_session"  # Different session
+)
+```
+
+## Async Operations
+
+All session operations have async variants:
+
+```python
+import asyncio
+
+async def manage_sessions():
+    # Get session
+    session = await db.get_session(
+        session_id="session_123",
+        session_type=SessionType.AGENT
+    )
+    
+    # Get sessions
+    sessions = await db.get_sessions(
+        session_type=SessionType.AGENT,
+        user_id="alice@example.com",
+        limit=10
+    )
+    
+    # Delete session
+    await db.delete_session(
+        session_id="session_123"
+    )
+
+asyncio.run(manage_sessions())
+```
+
+## Best Practices
+
+<Note>
+1. **Use consistent session IDs**: Generate UUIDs for session IDs to avoid conflicts
+2. **Enable summaries for long chats**: Reduce token usage in extended conversations
+3. **Clean up old sessions**: Implement a data retention policy
+4. **Use meaningful session names**: Makes it easier to identify sessions later
+5. **Combine with memories**: Use session state for immediate context, memories for long-term personalization
+</Note>
+
+<Warning>
+**Session Size**: Very long sessions can consume many tokens. Use session summaries or split into multiple sessions for better performance.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="User Memories" icon="brain" href="/memory/user-memories">
+    Learn about long-term memory management
+  </Card>
+  <Card title="Storage Overview" icon="database" href="/storage/overview">
+    Choose the right database for sessions
+  </Card>
+</CardGroup>

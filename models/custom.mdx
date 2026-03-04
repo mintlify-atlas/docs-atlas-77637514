@@ -1,0 +1,35 @@
+---
+title: "Custom models"
+description: "Integrate custom model providers"
+---
+
+Create custom model providers by extending the `Model` base class.
+
+## Basic custom model
+
+```python
+from agno.models.base import Model
+from agno.models.response import ModelResponse
+
+class CustomModel(Model):
+    name: str = "custom-model"
+    
+    def response(self, messages: list) -> ModelResponse:
+        # Your custom inference logic
+        response_text = self.call_your_api(messages)
+        
+        return ModelResponse(
+            content=response_text,
+            metrics={"tokens": len(response_text.split())}
+        )
+```
+
+## Using custom model
+
+```python
+agent = Agent(
+    model=CustomModel()
+)
+```
+
+See [API reference](/api/models/base) for complete documentation.

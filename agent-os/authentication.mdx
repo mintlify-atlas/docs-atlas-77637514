@@ -1,0 +1,697 @@
+---
+title: Authentication & Authorization
+description: Secure your AgentOS with JWT authentication and role-based access control (RBAC)
+---
+
+AgentOS provides enterprise-grade security with JWT token authentication and fine-grained role-based access control (RBAC) for protecting your agent endpoints.
+
+## Overview
+
+AgentOS supports two authentication methods:
+
+1. **Security Key Authentication** - Simple shared secret for development
+2. **JWT Authentication** - Token-based authentication with RBAC for production
+
+This guide focuses on JWT authentication with RBAC, which is recommended for production deployments.
+
+## JWT Authentication
+
+### Basic Setup
+
+Enable JWT authentication when creating your AgentOS:
+
+```python
+from agno.os import AgentOS
+from agno.os.config import AuthorizationConfig
+
+agent_os = AgentOS(
+    id="my-agent-os",
+    agents=[agent],
+    authorization=True,  # Enable RBAC
+    authorization_config=AuthorizationConfig(
+        verification_keys=["your-public-key-or-secret"],
+        algorithm="RS256",  # Default: RS256 (asymmetric)
+        verify_audience=True,  # Verify aud claim
+    ),
+)
+
+app = agent_os.get_app()
+```
+
+<Note>
+When `authorization=True`, JWT middleware enforces scope-based access control. Without this flag, tokens are validated but all authenticated users can access all resources.
+</Note>
+
+### Using Environment Variables
+
+Configure JWT via environment variables:
+
+```bash
+# Verification key (public key for RS256, secret for HS256)
+export JWT_VERIFICATION_KEY="your-verification-key"
+
+# Or use JWKS file for key rotation
+export JWT_JWKS_FILE="/path/to/jwks.json"
+```
+
+Then enable authorization:
+
+```python
+agent_os = AgentOS(
+    id="my-agent-os",
+    agents=[agent],
+    authorization=True,  # Keys read from env vars
+)
+```
+
+## Signing Algorithms
+
+AgentOS supports both symmetric and asymmetric JWT signing:
+
+| Algorithm | Type | Use Case | Key Type |
+|-----------|------|----------|----------|
+| **RS256** (default) | Asymmetric | Production | RSA public/private key pair |
+| **HS256** | Symmetric | Development | Shared secret |
+
+### RS256 (Asymmetric) - Recommended
+
+Use public/private key pairs for production:
+
+<CodeGroup>
+```python Generate Keys
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
+
+# Generate private key
+private_key = rsa.generate_private_key(
+    public_exponent=65537,
+    key_size=2048,
+)
+
+# Export private key (keep secure!)
+private_pem = private_key.private_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PrivateFormat.PKCS8,
+    encryption_algorithm=serialization.NoEncryption(),
+)
+
+# Export public key (share with AgentOS)
+public_pem = private_key.public_key().public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo,
+)
+
+print("Private Key (for signing):")
+print(private_pem.decode())
+print("\nPublic Key (for verification):")
+print(public_pem.decode())
+```
+
+```python Sign Tokens
+import jwt
+from datetime import datetime, timedelta, UTC
+
+# Sign token with private key (auth server)
+token = jwt.encode(
+    {
+        "sub": "user_123",
+        "aud": "my-agent-os",
+        "scopes": ["agents:read", "agents:run"],
+        "exp": datetime.now(UTC) + timedelta(hours=24),
+    },
+    private_pem,
+    algorithm="RS256"
+)
+```
+
+```python Configure AgentOS
+from agno.os.config import AuthorizationConfig
+
+# AgentOS verifies with public key
+agent_os = AgentOS(
+    id="my-agent-os",
+    agents=[agent],
+    authorization=True,
+    authorization_config=AuthorizationConfig(
+        verification_keys=[public_pem.decode()],
+        algorithm="RS256",
+        verify_audience=True,
+    ),
+)
+```
+</CodeGroup>
+
+### HS256 (Symmetric) - Development
+
+Use shared secrets for development and testing:
+
+```python
+import jwt
+from datetime import datetime, timedelta, UTC
+
+# Shared secret (at least 256 bits)
+SECRET = "a-very-long-secret-key-at-least-256-bits-long"
+
+# Sign token
+token = jwt.encode(
+    {
+        "sub": "user_123",
+        "aud": "my-agent-os",
+        "scopes": ["agents:read"],
+        "exp": datetime.now(UTC) + timedelta(hours=24),
+    },
+    SECRET,
+    algorithm="HS256"
+)
+
+# Configure AgentOS with same secret
+agent_os = AgentOS(
+    id="my-agent-os",
+    agents=[agent],
+    authorization=True,
+    authorization_config=AuthorizationConfig(
+        verification_keys=[SECRET],
+        algorithm="HS256",
+    ),
+)
+```
+
+<Warning>
+HS256 requires both signing and verification to use the same secret. Only use in trusted environments where you control both token generation and verification.
+</Warning>
+
+## Role-Based Access Control (RBAC)
+
+### Scope Format
+
+AgentOS uses a hierarchical scope system:
+
+```
+1. Admin scope (highest privilege)
+   agent_os:admin
+
+2. Global resource scopes
+   resource:action
+   Examples: agents:read, teams:run
+
+3. Per-resource scopes
+   resource:resource_id:action
+   Examples: agents:my-agent:run, teams:my-team:read
+
+4. Wildcard scopes
+   resource:*:action
+   Examples: agents:*:run (run any agent)
+```
+
+### Common Scopes
+
+<CodeGroup>
+```python Admin Access
+# Full access to everything
+scopes = ["agent_os:admin"]
+```
+
+```python Read-Only User
+# Can list and view all resources, but not execute
+scopes = [
+    "system:read",
+    "agents:read",
+    "teams:read",
+    "workflows:read",
+    "sessions:read",
+]
+```
+
+```python Power User
+# Can list all and run any agent/team
+scopes = [
+    "agents:read",
+    "agents:*:run",  # Wildcard: run any agent
+    "teams:read",
+    "teams:*:run",   # Wildcard: run any team
+]
+```
+
+```python Limited User
+# Can only access specific resources
+scopes = [
+    "agents:research-agent:read",
+    "agents:research-agent:run",
+    "teams:support-team:read",
+    "teams:support-team:run",
+]
+```
+</CodeGroup>
+
+### Available Scopes
+
+| Scope | Description |
+|-------|-------------|
+| `system:read` | View system configuration |
+| `agents:read` | List all agents |
+| `agents:run` | Run any agent (global) |
+| `agents:{id}:read` | View specific agent |
+| `agents:{id}:run` | Run specific agent |
+| `agents:*:run` | Run any agent (wildcard) |
+| `teams:read` | List all teams |
+| `teams:run` | Run any team (global) |
+| `teams:{id}:run` | Run specific team |
+| `workflows:read` | List all workflows |
+| `workflows:run` | Run any workflow (global) |
+| `sessions:read` | View sessions |
+| `sessions:write` | Create/update sessions |
+| `sessions:delete` | Delete sessions |
+| `memory:read` | View memory |
+| `knowledge:read` | View knowledge bases |
+| `schedules:read` | View schedules |
+| `schedules:write` | Create schedules |
+| `approvals:read` | View approvals |
+| `approvals:write` | Approve/reject requests |
+
+## Creating JWT Tokens
+
+### Token Structure
+
+A valid JWT token for AgentOS must include:
+
+```python
+import jwt
+from datetime import datetime, timedelta, UTC
+
+payload = {
+    # Required claims
+    "sub": "user_123",           # Subject (user ID)
+    "aud": "my-agent-os",        # Audience (AgentOS ID)
+    "exp": datetime.now(UTC) + timedelta(hours=24),  # Expiration
+    "iat": datetime.now(UTC),    # Issued at
+    
+    # RBAC scopes
+    "scopes": [
+        "agents:read",
+        "agents:my-agent:run",
+    ],
+    
+    # Optional custom claims
+    "email": "user@example.com",
+    "name": "John Doe",
+    "roles": ["admin", "user"],
+}
+
+token = jwt.encode(payload, SECRET_OR_PRIVATE_KEY, algorithm="RS256")
+```
+
+### Audience Verification
+
+The `aud` (audience) claim must match your AgentOS ID:
+
+```python
+# AgentOS ID
+agent_os = AgentOS(
+    id="production-os",  # <-- Must match aud claim
+    agents=[agent],
+    authorization=True,
+    authorization_config=AuthorizationConfig(
+        verification_keys=[public_key],
+        verify_audience=True,  # Enable audience verification
+    ),
+)
+
+# Token with matching audience
+token = jwt.encode(
+    {
+        "sub": "user_123",
+        "aud": "production-os",  # <-- Must match AgentOS ID
+        "scopes": ["agents:read"],
+        "exp": datetime.now(UTC) + timedelta(hours=24),
+    },
+    private_key,
+    algorithm="RS256"
+)
+```
+
+<Warning>
+Tokens with mismatched `aud` claims will be rejected with a 401 error when `verify_audience=True`.
+</Warning>
+
+## Making Authenticated Requests
+
+### Using Bearer Token
+
+Include the JWT token in the `Authorization` header:
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:7777/agents/my-agent/runs \
+  -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIs..." \
+  -F "message=Hello!"
+```
+
+```python Python
+import requests
+
+token = "eyJhbGciOiJSUzI1NiIs..."
+
+response = requests.post(
+    "http://localhost:7777/agents/my-agent/runs",
+    headers={"Authorization": f"Bearer {token}"},
+    files={"message": (None, "Hello!")}
+)
+
+print(response.json())
+```
+
+```javascript JavaScript
+const token = "eyJhbGciOiJSUzI1NiIs...";
+
+const formData = new FormData();
+formData.append('message', 'Hello!');
+
+const response = await fetch('http://localhost:7777/agents/my-agent/runs', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`
+  },
+  body: formData
+});
+
+const data = await response.json();
+```
+</CodeGroup>
+
+### Response Filtering
+
+Endpoints automatically filter results based on user scopes:
+
+```bash
+# User with specific agent access
+# Scopes: ["agents:agent-1:read", "agents:agent-2:read"]
+curl -H "Authorization: Bearer TOKEN" \
+  http://localhost:7777/agents
+
+# Response: Only returns agent-1 and agent-2
+{
+  "agents": [
+    {"id": "agent-1", "name": "Agent 1"},
+    {"id": "agent-2", "name": "Agent 2"}
+  ]
+}
+
+# User with global read access
+# Scopes: ["agents:read"]
+curl -H "Authorization: Bearer TOKEN" \
+  http://localhost:7777/agents
+
+# Response: Returns all agents
+```
+
+## Middleware Configuration
+
+### Direct Middleware Usage
+
+Alternatively, add JWT middleware directly to your FastAPI app:
+
+```python
+from agno.os import AgentOS
+from agno.os.middleware import JWTMiddleware
+
+agent_os = AgentOS(
+    id="my-agent-os",
+    agents=[agent],
+)
+
+app = agent_os.get_app()
+
+# Add JWT middleware with custom configuration
+app.add_middleware(
+    JWTMiddleware,
+    verification_keys=[public_key],
+    algorithm="RS256",
+    authorization=True,  # Enable RBAC
+    verify_audience=True,
+    user_id_claim="sub",
+    session_id_claim="session_id",
+    dependencies_claims=["email", "name"],  # Extract to request.state
+)
+```
+
+### Custom Scope Mappings
+
+Override default scope requirements for endpoints:
+
+```python
+app.add_middleware(
+    JWTMiddleware,
+    verification_keys=[public_key],
+    authorization=True,
+    scope_mappings={
+        # Override default
+        "GET /agents": ["custom:list_agents"],
+        
+        # Custom endpoint
+        "POST /custom/endpoint": ["custom:action"],
+        
+        # Public endpoint (no auth required)
+        "GET /public/health": [],
+    }
+)
+```
+
+### Extracting Claims
+
+Access JWT claims in your application:
+
+```python
+from fastapi import Request
+
+@app.get("/me")
+async def get_current_user(request: Request):
+    return {
+        "user_id": request.state.user_id,
+        "email": request.state.email,
+        "name": request.state.name,
+        "scopes": request.state.scopes,
+    }
+```
+
+## Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use RS256 in Production" icon="key">
+    Always use asymmetric keys (RS256) for production deployments
+  </Card>
+  <Card title="Enable Audience Verification" icon="shield-check">
+    Set `verify_audience=True` to prevent token reuse across services
+  </Card>
+  <Card title="Short Token Expiration" icon="clock">
+    Use short-lived tokens (1-24 hours) and implement refresh tokens
+  </Card>
+  <Card title="Principle of Least Privilege" icon="user-shield">
+    Grant minimum required scopes to each user
+  </Card>
+</CardGroup>
+
+### Token Best Practices
+
+1. **Use HTTPS**: Always use HTTPS in production to prevent token interception
+2. **Rotate Keys**: Implement key rotation using JWKS (JSON Web Key Sets)
+3. **Monitor Access**: Log authentication events and monitor for suspicious activity
+4. **Validate Claims**: Always verify `exp`, `aud`, and other critical claims
+5. **Secure Storage**: Never store tokens in localStorage; use httpOnly cookies
+
+### JWKS for Key Rotation
+
+Use JWKS files for seamless key rotation:
+
+```json jwks.json
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "kid": "key-1",
+      "n": "...",
+      "e": "AQAB"
+    },
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "kid": "key-2",
+      "n": "...",
+      "e": "AQAB"
+    }
+  ]
+}
+```
+
+```python
+agent_os = AgentOS(
+    agents=[agent],
+    authorization=True,
+    authorization_config=AuthorizationConfig(
+        jwks_file="/path/to/jwks.json",
+        algorithm="RS256",
+    ),
+)
+```
+
+## Complete Example
+
+Here's a complete example with JWT authentication and RBAC:
+
+```python app.py
+from agno.agent import Agent
+from agno.db.postgres import PostgresDb
+from agno.models.openai import OpenAIChat
+from agno.os import AgentOS
+from agno.os.config import AuthorizationConfig
+
+# Read public key from file
+with open("public_key.pem") as f:
+    public_key = f.read()
+
+# Setup database
+db = PostgresDb(db_url="postgresql+psycopg://user:pass@localhost/agno")
+
+# Create agents
+research_agent = Agent(
+    id="research-agent",
+    name="Research Agent",
+    model=OpenAIChat(id="gpt-4o"),
+    db=db,
+)
+
+support_agent = Agent(
+    id="support-agent",
+    name="Support Agent",
+    model=OpenAIChat(id="gpt-4o"),
+    db=db,
+)
+
+# Create AgentOS with JWT authentication
+agent_os = AgentOS(
+    id="production-os",
+    description="Production AgentOS with RBAC",
+    agents=[research_agent, support_agent],
+    authorization=True,
+    authorization_config=AuthorizationConfig(
+        verification_keys=[public_key],
+        algorithm="RS256",
+        verify_audience=True,
+    ),
+    cors_allowed_origins=["https://yourdomain.com"],
+)
+
+app = agent_os.get_app()
+
+if __name__ == "__main__":
+    agent_os.serve(app="app:app", port=7777)
+```
+
+Generate and use tokens:
+
+```python generate_token.py
+import jwt
+from datetime import datetime, timedelta, UTC
+
+# Read private key
+with open("private_key.pem") as f:
+    private_key = f.read()
+
+# Create token for admin user
+admin_token = jwt.encode(
+    {
+        "sub": "admin_user",
+        "aud": "production-os",
+        "scopes": ["agent_os:admin"],
+        "exp": datetime.now(UTC) + timedelta(hours=24),
+        "iat": datetime.now(UTC),
+    },
+    private_key,
+    algorithm="RS256"
+)
+
+# Create token for limited user
+limited_token = jwt.encode(
+    {
+        "sub": "user_123",
+        "aud": "production-os",
+        "scopes": [
+            "agents:research-agent:read",
+            "agents:research-agent:run",
+        ],
+        "exp": datetime.now(UTC) + timedelta(hours=24),
+        "iat": datetime.now(UTC),
+    },
+    private_key,
+    algorithm="RS256"
+)
+
+print(f"Admin token: {admin_token}")
+print(f"Limited token: {limited_token}")
+```
+
+## Error Responses
+
+### 401 Unauthorized
+
+Token is missing, expired, or invalid:
+
+```json
+{
+  "detail": "Invalid or expired token"
+}
+```
+
+**Common causes:**
+- Missing `Authorization` header
+- Expired token (`exp` claim in the past)
+- Invalid signature
+- Mismatched audience when `verify_audience=True`
+
+### 403 Forbidden
+
+User lacks required scopes:
+
+```json
+{
+  "detail": "Access denied to run this agent"
+}
+```
+
+**Common causes:**
+- Missing required scope for the endpoint
+- Trying to access a resource not in user's scopes
+- Token has `agents:read` but endpoint requires `agents:run`
+
+## Troubleshooting
+
+<Warning>
+Common authentication issues and solutions
+</Warning>
+
+**Scopes not being enforced**
+- Ensure `authorization=True` is set
+- Without this flag, JWT is validated but scopes are not checked
+
+**All resources return empty**
+- Check that user has appropriate read scopes
+- Verify scope format matches the resource type
+
+**Audience verification fails**
+- Ensure `aud` claim in token matches AgentOS `id`
+- Set `verify_audience=False` to disable (not recommended for production)
+
+**Token signature verification fails**
+- For RS256: Ensure public key matches the private key used for signing
+- For HS256: Ensure the same secret is used for signing and verification
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/agent-os/api-reference">
+    Complete endpoint and authentication documentation
+  </Card>
+  <Card title="Deployment Guide" icon="server" href="/agent-os/deployment">
+    Deploy secured AgentOS to production
+  </Card>
+</CardGroup>

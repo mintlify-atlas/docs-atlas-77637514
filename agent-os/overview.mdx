@@ -1,0 +1,273 @@
+---
+title: AgentOS Overview
+description: Production-ready runtime for deploying and managing AI agents, teams, and workflows at scale
+---
+
+AgentOS is a FastAPI-based production runtime that transforms your Agno agents, teams, and workflows into production-ready web services with built-in authentication, monitoring, and management capabilities.
+
+## What is AgentOS?
+
+AgentOS provides a complete infrastructure layer for your AI agents, including:
+
+- **RESTful API endpoints** for all agents, teams, and workflows
+- **WebSocket support** for real-time streaming responses
+- **Authentication & authorization** with JWT and RBAC
+- **Session management** with automatic memory persistence
+- **Knowledge base integration** with vector search
+- **Monitoring & observability** with traces, metrics, and evaluations
+- **Scheduler** for cron-based agent execution
+- **Approval workflows** for human-in-the-loop operations
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="FastAPI Integration" icon="bolt">
+    Built on FastAPI for high performance async operations with automatic OpenAPI documentation
+  </Card>
+  <Card title="Multi-Interface Support" icon="plug">
+    Expose agents via REST API, WebSocket, Slack, A2A protocol, and custom interfaces
+  </Card>
+  <Card title="Production Security" icon="shield">
+    JWT authentication, RBAC, CORS configuration, and audience verification out of the box
+  </Card>
+  <Card title="Observability" icon="chart-line">
+    Built-in tracing, metrics collection, session tracking, and evaluation framework
+  </Card>
+</CardGroup>
+
+## Architecture
+
+AgentOS follows a layered architecture:
+
+```
+┌─────────────────────────────────────────┐
+│   Interfaces (REST, WebSocket, Slack)   │
+├─────────────────────────────────────────┤
+│   AgentOS Core (Routing & Middleware)   │
+├─────────────────────────────────────────┤
+│   Agents, Teams, Workflows              │
+├─────────────────────────────────────────┤
+│   Storage (PostgreSQL, SQLite, etc.)    │
+└─────────────────────────────────────────┘
+```
+
+### Core Components
+
+**AgentOS Class**
+- Central orchestrator that manages all agents, teams, and workflows
+- Handles database initialization and connection pooling
+- Configures middleware, authentication, and routing
+- Located at: `libs/agno/agno/os/app.py:180`
+
+**Routers**
+- `/agents` - Agent management and execution
+- `/teams` - Team collaboration endpoints
+- `/workflows` - Workflow orchestration
+- `/sessions` - Session and conversation history
+- `/memory` - Long-term memory management
+- `/knowledge` - Knowledge base operations
+- `/schedules` - Cron scheduler management
+- `/approvals` - Human approval workflows
+
+**Interfaces**
+- REST API (default)
+- WebSocket for streaming
+- A2A (Agent-to-Agent protocol)
+- Slack integration
+- Custom interfaces via `BaseInterface`
+
+## Basic Usage
+
+<CodeGroup>
+```python Basic Example
+from agno.agent import Agent
+from agno.db.postgres import PostgresDb
+from agno.os import AgentOS
+
+# Setup database
+db = PostgresDb(
+    id="production-db",
+    db_url="postgresql+psycopg://user:pass@localhost:5432/agno"
+)
+
+# Create agent
+agent = Agent(
+    name="Assistant",
+    db=db,
+    enable_session_summaries=True,
+    update_memory_on_run=True,
+)
+
+# Create AgentOS
+agent_os = AgentOS(
+    id="my-agent-os",
+    description="Production AI Assistant",
+    agents=[agent],
+)
+
+# Get FastAPI app
+app = agent_os.get_app()
+
+if __name__ == "__main__":
+    agent_os.serve(app="main:app", port=7777)
+```
+
+```python With Team
+from agno.team import Team
+from agno.models.openai import OpenAIChat
+
+research_agent = Agent(name="Researcher", tools=[WebSearchTools()])
+writer_agent = Agent(name="Writer")
+
+team = Team(
+    id="research-team",
+    name="Research Team",
+    model=OpenAIChat(id="gpt-4o"),
+    members=[research_agent, writer_agent],
+    db=db,
+)
+
+agent_os = AgentOS(
+    agents=[research_agent, writer_agent],
+    teams=[team],
+)
+```
+
+```python With Workflow
+from agno.workflow import Workflow
+from agno.workflow.step import Step
+
+workflow = Workflow(
+    id="content-pipeline",
+    name="Content Pipeline",
+    db=db,
+    steps=[
+        Step(name="research", agent=research_agent),
+        Step(name="write", agent=writer_agent),
+    ],
+)
+
+agent_os = AgentOS(
+    workflows=[workflow],
+)
+```
+</CodeGroup>
+
+## Key Concepts
+
+### Automatic Database Discovery
+
+AgentOS automatically discovers and initializes databases from your agents, teams, and workflows:
+
+```python
+# Each component can have its own database
+agent1 = Agent(db=postgres_db)
+agent2 = Agent(db=sqlite_db)
+team = Team(db=postgres_db)
+
+# AgentOS discovers and manages all databases
+agent_os = AgentOS(agents=[agent1, agent2], teams=[team])
+# Auto-provisions tables and connection pools
+```
+
+### Unified Configuration
+
+Provide OS-level defaults that propagate to all components:
+
+```python
+agent_os = AgentOS(
+    db=db,  # Default database for all agents/teams
+    agents=[agent1, agent2],  # Agents without db use OS db
+    auto_provision_dbs=True,  # Auto-create tables
+    tracing=True,  # Enable tracing for all
+    run_hooks_in_background=True,  # Non-blocking hooks
+)
+```
+
+### Lifespan Management
+
+AgentOS manages the complete lifecycle of your application:
+
+- **Startup**: Database initialization, MCP tool connections, scheduler startup
+- **Runtime**: Request handling, connection pooling, background tasks
+- **Shutdown**: Graceful database closure, connection cleanup, task completion
+
+```python
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def custom_lifespan(app, agent_os):
+    # Startup logic
+    print(f"Starting {agent_os.id}")
+    yield
+    # Shutdown logic
+    print("Shutting down gracefully")
+
+agent_os = AgentOS(
+    agents=[agent],
+    lifespan=custom_lifespan,
+)
+```
+
+## Available Endpoints
+
+When you deploy AgentOS, you get automatic REST API endpoints:
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /config` | OS configuration and capabilities |
+| `GET /agents` | List all available agents |
+| `POST /agents/{agent_id}/runs` | Execute an agent |
+| `GET /teams` | List all teams |
+| `POST /teams/{team_id}/runs` | Execute a team |
+| `GET /workflows` | List all workflows |
+| `POST /workflows/{workflow_id}/runs` | Execute a workflow |
+| `GET /sessions` | Retrieve conversation sessions |
+| `GET /knowledge` | Access knowledge bases |
+| `GET /traces` | View execution traces |
+| `GET /health` | Health check endpoint |
+
+See the [API Reference](/agent-os/api-reference) for complete endpoint documentation.
+
+## Production Considerations
+
+<Note>
+AgentOS is designed for production use with features like connection pooling, async database operations, graceful shutdown, and comprehensive error handling.
+</Note>
+
+### Performance
+
+- **Async by default**: All database operations are async-first
+- **Connection pooling**: Automatic database connection management
+- **Background tasks**: Non-blocking hooks and evaluations
+- **Streaming responses**: Memory-efficient SSE streaming
+
+### Scalability
+
+- **Horizontal scaling**: Stateless design for multi-instance deployment
+- **Database sharding**: Multiple database support per component
+- **Resource isolation**: Separate databases per agent/team
+
+### Reliability
+
+- **Health checks**: Built-in `/health` endpoint
+- **Error handling**: Comprehensive exception handling
+- **Graceful shutdown**: Clean resource cleanup
+- **Retry logic**: Automatic retry for transient failures
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Getting Started" icon="rocket" href="/agent-os/getting-started">
+    Build and deploy your first AgentOS application
+  </Card>
+  <Card title="Deployment" icon="server" href="/agent-os/deployment">
+    Learn production deployment strategies
+  </Card>
+  <Card title="Authentication" icon="lock" href="/agent-os/authentication">
+    Secure your AgentOS with JWT and RBAC
+  </Card>
+  <Card title="API Reference" icon="code" href="/agent-os/api-reference">
+    Complete API endpoint documentation
+  </Card>
+</CardGroup>

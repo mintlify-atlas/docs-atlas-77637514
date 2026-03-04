@@ -1,0 +1,471 @@
+---
+title: Team Examples
+description: Multi-agent coordination patterns including basic teams, specialized modes, and advanced collaboration strategies.
+---
+
+Teams enable multiple agents to collaborate on complex tasks. The team leader coordinates members and synthesizes their outputs.
+
+## Basic Team Coordination
+
+A simple two-member team working together.
+
+```python basic_team.py
+from agno.agent import Agent
+from agno.models.openai import OpenAIResponses
+from agno.team import Team
+
+# Create specialized members
+planner = Agent(
+    name="Planner",
+    role="You plan tasks and split work into clear, ordered steps.",
+    model=OpenAIResponses(id="gpt-5-mini"),
+)
+
+writer = Agent(
+    name="Writer",
+    role="You draft concise, readable summaries from the team discussion.",
+    model=OpenAIResponses(id="gpt-5-mini"),
+)
+
+# Create team with leader
+team = Team(
+    model=OpenAIResponses(id="gpt-5-mini"),
+    name="Planning Team",
+    members=[planner, writer],
+    instructions=[
+        "Coordinate with the two members to answer the user question.",
+        "First plan the response, then generate a clear final summary.",
+    ],
+    markdown=True,
+    show_members_responses=True,
+)
+
+if __name__ == "__main__":
+    team.print_response(
+        "Create a three-step outline for launching a small coding side project.",
+        stream=True,
+    )
+```
+
+<Note>
+**How teams work:**
+1. User sends a message to the team
+2. Team leader decides which members to involve
+3. Members complete their tasks
+4. Leader synthesizes into final response
+</Note>
+
+---
+
+## Router Team (Respond Directly)
+
+Members can respond directly without going through the leader.
+
+```python router_team.py
+from agno.agent import Agent
+from agno.team import Team
+from agno.tools.calculator import CalculatorTools
+from agno.tools.websearch import WebSearchTools
+
+# Specialist agents
+math_expert = Agent(
+    name="Math Expert",
+    role="Handle all mathematical and calculation tasks",
+    model=OpenAIResponses(id="gpt-5-mini"),
+    tools=[CalculatorTools()],
+)
+
+research_expert = Agent(
+    name="Research Expert",
+    role="Search the web for current information",
+    model=OpenAIResponses(id="gpt-5-mini"),
+    tools=[WebSearchTools()],
+)
+
+general_assistant = Agent(
+    name="General Assistant",
+    role="Handle general questions and conversations",
+    model=OpenAIResponses(id="gpt-5-mini"),
+)
+
+# Router team - members respond directly
+router_team = Team(
+    name="Router Team",
+    model=OpenAIResponses(id="gpt-5-mini"),
+    members=[math_expert, research_expert, general_assistant],
+    instructions=[
+        "Route questions to the appropriate specialist.",
+        "Math questions → Math Expert",
+        "Research questions → Research Expert",
+        "General questions → General Assistant",
+        "Let the specialist respond directly.",
+    ],
+    respond_directly=True,  # Members respond without leader synthesis
+    markdown=True,
+)
+
+if __name__ == "__main__":
+    # Math question - routed to Math Expert
+    router_team.print_response(
+        "What is 15% of 847?",
+        stream=True,
+    )
+    
+    # Research question - routed to Research Expert
+    router_team.print_response(
+        "What's the latest news about AI?",
+        stream=True,
+    )
+```
+
+<Tip>
+Use `respond_directly=True` when you want specialist responses without leader overhead.
+</Tip>
+
+---
+
+## Delegate to All Members
+
+Send the task to all members simultaneously.
+
+```python delegate_all.py
+from agno.agent import Agent
+from agno.team import Team
+from agno.tools.yfinance import YFinanceTools
+
+# Create opposing analysts
+bull_analyst = Agent(
+    name="Bull Analyst",
+    role="Make the strongest case FOR investing",
+    model=OpenAIResponses(id="gpt-5-mini"),
+    tools=[YFinanceTools(all=True)],
+    instructions="Focus on growth drivers, competitive advantages, and positive metrics.",
+)
+
+bear_analyst = Agent(
+    name="Bear Analyst",
+    role="Make the strongest case AGAINST investing",
+    model=OpenAIResponses(id="gpt-5-mini"),
+    tools=[YFinanceTools(all=True)],
+    instructions="Focus on risks, valuation concerns, and potential weaknesses.",
+)
+
+# Team broadcasts to all members
+investment_team = Team(
+    name="Investment Analysis Team",
+    model=OpenAIResponses(id="gpt-5-mini"),
+    members=[bull_analyst, bear_analyst],
+    instructions=[
+        "Get analysis from BOTH the bull and bear analysts.",
+        "Synthesize their perspectives into a balanced recommendation.",
+        "Include bull case, bear case, and your balanced view.",
+    ],
+    delegate_to_all_members=True,  # Send to all members
+    show_members_responses=True,
+    markdown=True,
+)
+
+if __name__ == "__main__":
+    investment_team.print_response(
+        "Should I invest in NVIDIA (NVDA)?",
+        stream=True,
+    )
+```
+
+<Accordion title="When to delegate to all members">
+**Use when:**
+- You need multiple perspectives (bull/bear, pro/con)
+- Members have different specialties that all apply
+- You want comprehensive coverage
+
+**Don't use when:**
+- Only one member is relevant (use router pattern)
+- Sequential work is needed (use workflow)
+</Accordion>
+
+---
+
+## Team with History
+
+Teams remember conversations across runs.
+
+```python team_with_history.py
+from agno.agent import Agent
+from agno.team import Team
+from agno.db.sqlite import SqliteDb
+from agno.tools.websearch import WebSearchTools
+
+db = SqliteDb(db_file="tmp/teams.db")
+
+researcher = Agent(
+    name="Researcher",
+    role="Research topics on the web",
+    tools=[WebSearchTools()],
+    db=db,
+)
+
+writer = Agent(
+    name="Writer",
+    role="Write clear summaries",
+    db=db,
+)
+
+team = Team(
+    name="Research Team",
+    model=OpenAIResponses(id="gpt-5-mini"),
+    members=[researcher, writer],
+    db=db,
+    add_history_to_context=True,
+    num_history_runs=5,
+    markdown=True,
+)
+
+if __name__ == "__main__":
+    session_id = "research-session"
+    
+    # First request
+    team.print_response(
+        "Research the latest developments in quantum computing",
+        session_id=session_id,
+        stream=True,
+    )
+    
+    # Follow-up - team remembers previous research
+    team.print_response(
+        "How does that compare to classical computing?",
+        session_id=session_id,
+        stream=True,
+    )
+```
+
+---
+
+## Concurrent Member Execution
+
+Run member agents in parallel for faster execution.
+
+```python concurrent_team.py
+from agno.agent import Agent
+from agno.team import Team
+from agno.tools.websearch import WebSearchTools
+from agno.tools.yfinance import YFinanceTools
+
+# Create specialists
+market_analyst = Agent(
+    name="Market Analyst",
+    role="Analyze market data and trends",
+    tools=[YFinanceTools(all=True)],
+)
+
+news_analyst = Agent(
+    name="News Analyst",
+    role="Search for recent news and developments",
+    tools=[WebSearchTools()],
+)
+
+technical_analyst = Agent(
+    name="Technical Analyst",
+    role="Analyze charts and technical indicators",
+    tools=[YFinanceTools(all=True)],
+)
+
+# Team runs members concurrently
+analysis_team = Team(
+    name="Concurrent Analysis Team",
+    model=OpenAIResponses(id="gpt-5-mini"),
+    members=[market_analyst, news_analyst, technical_analyst],
+    concurrent_members=True,  # Run members in parallel
+    delegate_to_all_members=True,
+    instructions="Gather analysis from all three specialists and synthesize.",
+    markdown=True,
+)
+
+if __name__ == "__main__":
+    analysis_team.print_response(
+        "Give me a comprehensive analysis of Tesla (TSLA)",
+        stream=True,
+    )
+```
+
+<Tip>
+Use `concurrent_members=True` when members don't depend on each other's outputs. This significantly speeds up execution.
+</Tip>
+
+---
+
+## Share Member Interactions
+
+Members can see each other's tool calls and outputs.
+
+```python shared_interactions.py
+from agno.agent import Agent
+from agno.team import Team
+from agno.tools.websearch import WebSearchTools
+
+researcher = Agent(
+    name="Researcher",
+    role="Research topics and gather data",
+    tools=[WebSearchTools()],
+)
+
+analyst = Agent(
+    name="Analyst",
+    role="Analyze the research data",
+    # No tools - relies on researcher's findings
+)
+
+writer = Agent(
+    name="Writer",
+    role="Write final report",
+    # No tools - relies on analyst's insights
+)
+
+team = Team(
+    name="Collaborative Team",
+    model=OpenAIResponses(id="gpt-5-mini"),
+    members=[researcher, analyst, writer],
+    share_member_interactions=True,  # Members see each other's tool calls
+    instructions="""
+    1. Researcher gathers data
+    2. Analyst reviews researcher's findings
+    3. Writer creates final report based on both
+    """,
+    markdown=True,
+)
+
+if __name__ == "__main__":
+    team.print_response(
+        "Research and analyze the impact of AI on healthcare",
+        stream=True,
+    )
+```
+
+---
+
+## Team with Memory
+
+Teams can remember user preferences across sessions.
+
+```python team_memory.py
+from agno.agent import Agent
+from agno.team import Team
+from agno.memory import MemoryManager
+from agno.db.sqlite import SqliteDb
+
+db = SqliteDb(db_file="tmp/teams.db")
+
+memory_manager = MemoryManager(
+    model=OpenAIResponses(id="gpt-5-mini"),
+    db=db,
+    additional_instructions="Capture user preferences, interests, and goals.",
+)
+
+researcher = Agent(
+    name="Researcher",
+    role="Research topics",
+    tools=[WebSearchTools()],
+)
+
+writer = Agent(
+    name="Writer",
+    role="Write summaries",
+)
+
+team = Team(
+    name="Personalized Team",
+    model=OpenAIResponses(id="gpt-5-mini"),
+    members=[researcher, writer],
+    db=db,
+    memory_manager=memory_manager,
+    update_memory_on_run=True,
+    markdown=True,
+)
+
+if __name__ == "__main__":
+    user_id = "user@example.com"
+    
+    # Team learns preferences
+    team.print_response(
+        "I'm interested in sustainable energy and climate tech",
+        user_id=user_id,
+        stream=True,
+    )
+    
+    # Team uses preferences
+    team.print_response(
+        "Give me a research summary on recent developments",
+        user_id=user_id,
+        stream=True,
+    )
+```
+
+---
+
+## Distributed RAG Team
+
+Multiple agents search different knowledge bases.
+
+```python distributed_rag.py
+from agno.agent import Agent
+from agno.team import Team
+from agno.knowledge import Knowledge
+from agno.vectordb.chroma import ChromaDb
+
+# Create separate knowledge bases
+tech_kb = Knowledge(
+    name="Tech Docs",
+    vector_db=ChromaDb(collection="tech_docs", path="tmp/chromadb"),
+)
+
+business_kb = Knowledge(
+    name="Business Docs",
+    vector_db=ChromaDb(collection="business_docs", path="tmp/chromadb"),
+)
+
+# Agents with different knowledge bases
+tech_expert = Agent(
+    name="Tech Expert",
+    role="Answer technical questions",
+    knowledge=tech_kb,
+    search_knowledge=True,
+)
+
+business_expert = Agent(
+    name="Business Expert",
+    role="Answer business questions",
+    knowledge=business_kb,
+    search_knowledge=True,
+)
+
+# Team coordinates searches
+distributed_team = Team(
+    name="Distributed RAG Team",
+    model=OpenAIResponses(id="gpt-5-mini"),
+    members=[tech_expert, business_expert],
+    instructions="Route questions to the appropriate knowledge specialist.",
+    markdown=True,
+)
+
+if __name__ == "__main__":
+    distributed_team.print_response(
+        "What are the technical requirements and business implications of our new API?",
+        stream=True,
+    )
+```
+
+<Note>
+Distributed RAG is perfect for organizations with specialized knowledge bases (legal, technical, financial, etc.)
+</Note>
+
+---
+
+## Next Steps
+
+Explore more patterns:
+
+- [Workflows](/cookbook/workflows) - Sequential and conditional orchestration
+- [Production](/cookbook/production) - Deploy teams with AgentOS
+
+<Tip>
+For the complete collection of team examples, see the [source code](https://github.com/agno-agi/agno/tree/main/cookbook/03_teams).
+</Tip>

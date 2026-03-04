@@ -1,0 +1,275 @@
+---
+title: Team
+description: Multi-agent teams for collaborative AI workflows
+---
+
+The `Team` class enables multiple agents to work together on complex tasks. Teams can operate in different modes, delegate work to members, and coordinate responses.
+
+## Constructor
+
+```python
+from agno import Agent, Team
+
+researcher = Agent(name="Researcher", role="Research")
+writer = Agent(name="Writer", role="Writing")
+
+team = Team(
+    members=[researcher, writer],
+    model="gpt-4o",
+    name="Research Team"
+)
+```
+
+## Core Parameters
+
+<ParamField path="members" type="List[Agent | Team] | Callable" required>
+  List of agents or teams that make up this team. Can also be a callable factory.
+</ParamField>
+
+<ParamField path="model" type="Model | str" default="None">
+  Language model for the team leader to use for coordination.
+</ParamField>
+
+<ParamField path="name" type="str" default="None">
+  A descriptive name for the team.
+</ParamField>
+
+<ParamField path="id" type="str" default="None">
+  Unique identifier for the team. Auto-generated if not provided.
+</ParamField>
+
+<ParamField path="role" type="str" default="None">
+  If this team is part of another team, this is its role.
+</ParamField>
+
+## Execution Modes
+
+<ParamField path="mode" type="TeamMode" default="None">
+  Team execution mode. When set, overrides the boolean flags below.
+</ParamField>
+
+<ParamField path="respond_directly" type="bool" default="False">
+  If True, team leader won't process member responses and returns them directly.
+</ParamField>
+
+<ParamField path="delegate_to_all_members" type="bool" default="False">
+  If True, delegates the task to all members instead of deciding which to use.
+</ParamField>
+
+<ParamField path="determine_input_for_members" type="bool" default="True">
+  If False, sends the run input directly to member agents.
+</ParamField>
+
+<ParamField path="max_iterations" type="int" default="10">
+  Maximum number of iterations for autonomous task loop (mode=tasks).
+</ParamField>
+
+## Session & State
+
+<ParamField path="session_id" type="str" default="None">
+  Default session ID for the team.
+</ParamField>
+
+<ParamField path="session_state" type="Dict[str, Any]" default="None">
+  Session state stored in the database.
+</ParamField>
+
+<ParamField path="add_session_state_to_context" type="bool" default="False">
+  If True, adds session_state to the context.
+</ParamField>
+
+<ParamField path="enable_agentic_state" type="bool" default="False">
+  If True, gives the team tools to update session_state.
+</ParamField>
+
+## History & Memory
+
+<ParamField path="add_team_history_to_members" type="bool" default="False">
+  Send team-level history to members.
+</ParamField>
+
+<ParamField path="num_team_history_runs" type="int" default="3">
+  Number of historical runs to include in messages to members.
+</ParamField>
+
+<ParamField path="share_member_interactions" type="bool" default="False">
+  If True, sends all member interactions during current run to delegated members.
+</ParamField>
+
+<ParamField path="add_history_to_context" type="bool" default="False">
+  Adds messages from chat history to the context.
+</ParamField>
+
+<ParamField path="num_history_runs" type="int" default="None">
+  Number of historical runs to include.
+</ParamField>
+
+## Database
+
+<ParamField path="db" type="BaseDb | AsyncBaseDb" default="None">
+  Database for storing team sessions and history.
+</ParamField>
+
+<ParamField path="memory_manager" type="MemoryManager" default="None">
+  Memory manager for the team.
+</ParamField>
+
+## Knowledge & Tools
+
+<ParamField path="knowledge" type="KnowledgeProtocol | Callable" default="None">
+  Knowledge base for the team.
+</ParamField>
+
+<ParamField path="tools" type="List[Toolkit | Callable | Function | Dict] | Callable" default="None">
+  Tools available to the team leader.
+</ParamField>
+
+<ParamField path="get_member_information_tool" type="bool" default="False">
+  If True, adds a tool to get information about team members.
+</ParamField>
+
+<ParamField path="read_chat_history" type="bool" default="False">
+  If True, adds a tool to read the chat history.
+</ParamField>
+
+## Response Configuration
+
+<ParamField path="output_schema" type="Type[BaseModel] | Dict[str, Any]" default="None">
+  Pydantic model or JSON schema for structured output.
+</ParamField>
+
+<ParamField path="stream" type="bool" default="None">
+  Stream the response from the team.
+</ParamField>
+
+<ParamField path="stream_events" type="bool" default="None">
+  Stream intermediate steps.
+</ParamField>
+
+<ParamField path="stream_member_events" type="bool" default="True">
+  Stream events from member agents.
+</ParamField>
+
+<ParamField path="store_member_responses" type="bool" default="False">
+  Store member agent runs inside the team's RunOutput.
+</ParamField>
+
+## Methods
+
+### run()
+
+Run the team with a task.
+
+```python
+response = team.run("Research AI trends and write a report")
+print(response.content)
+```
+
+**Parameters:**
+
+- `input` (str | List | Dict | Message | BaseModel): The input task
+- `stream` (bool): Whether to stream the response
+- `session_id` (str): Optional session ID
+- `user_id` (str): Optional user ID
+
+**Returns:** `TeamRunOutput` or Iterator of events if streaming
+
+### arun()
+
+Async version of `run()`.
+
+```python
+response = await team.arun("Research and write")
+```
+
+### print_response()
+
+Run the team and print the response to console.
+
+```python
+team.print_response("Create a marketing plan")
+```
+
+### save()
+
+Save the team configuration.
+
+```python
+team.save(db=db, stage="published")
+```
+
+### load()
+
+Load a team from the database.
+
+```python
+team = Team.load(id="my_team", db=db)
+```
+
+## Example Usage
+
+<CodeGroup>
+```python Basic Team
+from agno import Agent, Team
+
+researcher = Agent(
+    name="Researcher",
+    role="Find information",
+    instructions="Search and gather information"
+)
+
+writer = Agent(
+    name="Writer",
+    role="Write content",
+    instructions="Write clear, engaging content"
+)
+
+team = Team(
+    members=[researcher, writer],
+    model="gpt-4o",
+    instructions="Coordinate research and writing tasks"
+)
+
+response = team.run("Write about quantum computing")
+```
+
+```python Team with Shared Knowledge
+from agno import Agent, Team
+from agno.knowledge import WikipediaKnowledge
+
+knowledge = WikipediaKnowledge()
+
+analyst = Agent(name="Analyst", knowledge=knowledge)
+reviewer = Agent(name="Reviewer", knowledge=knowledge)
+
+team = Team(
+    members=[analyst, reviewer],
+    knowledge=knowledge,
+    share_member_interactions=True
+)
+```
+
+```python Hierarchical Teams
+from agno import Agent, Team
+
+# Sub-team for research
+research_team = Team(
+    members=[Agent(name="Researcher1"), Agent(name="Researcher2")],
+    name="Research Team"
+)
+
+# Sub-team for writing
+writing_team = Team(
+    members=[Agent(name="Writer"), Agent(name="Editor")],
+    name="Writing Team"
+)
+
+# Main team coordinating sub-teams
+main_team = Team(
+    members=[research_team, writing_team],
+    name="Content Team"
+)
+
+response = main_team.run("Create a comprehensive report")
+```
+</CodeGroup>

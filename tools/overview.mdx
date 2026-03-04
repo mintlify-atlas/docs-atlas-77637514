@@ -1,0 +1,531 @@
+---
+title: Tools Overview
+description: Comprehensive guide to Agno's 100+ built-in tools and integrations for extending agent capabilities
+---
+
+## Introduction
+
+Agno provides a rich ecosystem of over 100 built-in tools that extend agent capabilities across various domains. Tools enable agents to interact with external APIs, services, databases, and systems to accomplish complex tasks.
+
+## What are Tools?
+
+Tools are functions that agents can call to perform specific actions. Each tool:
+
+- Has a **name** and **description** that helps the agent understand when to use it
+- Accepts **parameters** defined by a JSON schema
+- Returns **results** that the agent can use in its response
+- Can be **sync or async** for optimal performance
+
+## Built-in Tool Categories
+
+### Search & Web Tools
+
+<CardGroup cols={3}>
+  <Card title="DuckDuckGoTools" icon="magnifying-glass">
+    Web search with DuckDuckGo
+  </Card>
+  <Card title="TavilyTools" icon="search">
+    AI-optimized search API
+  </Card>
+  <Card title="BraveSearchTools" icon="shield">
+    Privacy-focused search
+  </Card>
+  <Card title="SerperTools" icon="google">
+    Google search API
+  </Card>
+  <Card title="SerpApiTools" icon="globe">
+    Search engine results
+  </Card>
+  <Card title="EXATools" icon="brain">
+    Neural search engine
+  </Card>
+  <Card title="WebsearchTools" icon="world-www">
+    Multi-backend web search
+  </Card>
+  <Card title="LinkupTools" icon="link">
+    Link analysis
+  </Card>
+  <Card title="JinaTools" icon="newspaper">
+    Reader and search API
+  </Card>
+</CardGroup>
+
+### Developer Tools
+
+<CardGroup cols={3}>
+  <Card title="GithubTools" icon="github">
+    Repository management, PRs, issues
+  </Card>
+  <Card title="BitbucketTools" icon="bitbucket">
+    Bitbucket integration
+  </Card>
+  <Card title="LinearTools" icon="list-check">
+    Issue tracking
+  </Card>
+  <Card title="JiraTools" icon="jira">
+    Project management
+  </Card>
+  <Card title="ClickUpTools" icon="check">
+    Task management
+  </Card>
+  <Card title="DaytonaTools" icon="code">
+    Development environments
+  </Card>
+  <Card title="ShellTools" icon="terminal">
+    Shell command execution
+  </Card>
+  <Card title="PythonTools" icon="python">
+    Python code execution
+  </Card>
+  <Card title="DockerTools" icon="docker">
+    Container management
+  </Card>
+</CardGroup>
+
+### Data & Database Tools
+
+<CardGroup cols={3}>
+  <Card title="PostgresTools" icon="database">
+    PostgreSQL operations
+  </Card>
+  <Card title="DuckDBTools" icon="duck">
+    DuckDB analytics
+  </Card>
+  <Card title="RedshiftTools" icon="aws">
+    Amazon Redshift
+  </Card>
+  <Card title="Neo4jTools" icon="project-diagram">
+    Graph database
+  </Card>
+  <Card title="SQLTools" icon="table">
+    Generic SQL operations
+  </Card>
+  <Card title="PandasTools" icon="chart-line">
+    Data analysis
+  </Card>
+  <Card title="CSVToolkit" icon="file-csv">
+    CSV file operations
+  </Card>
+</CardGroup>
+
+### AI & ML Tools
+
+<CardGroup cols={3}>
+  <Card title="OpenAITools" icon="openai">
+    GPT-4, DALL-E, Whisper
+  </Card>
+  <Card title="ReplicateTools" icon="clone">
+    ML model deployment
+  </Card>
+  <Card title="FalTools" icon="wand-magic-sparkles">
+    Fast AI inference
+  </Card>
+  <Card title="ModelsLabTools" icon="flask">
+    Model experiments
+  </Card>
+  <Card title="LumalabTools" icon="video">
+    Video generation
+  </Card>
+  <Card title="ElevenLabsTools" icon="microphone">
+    Voice synthesis
+  </Card>
+  <Card title="CartesiaTools" icon="waveform-lines">
+    Audio generation
+  </Card>
+  <Card title="DesiVocalTools" icon="language">
+    Indian language TTS
+  </Card>
+</CardGroup>
+
+### Communication Tools
+
+<CardGroup cols={3}>
+  <Card title="SlackTools" icon="slack">
+    Slack messaging
+  </Card>
+  <Card title="DiscordTools" icon="discord">
+    Discord bots
+  </Card>
+  <Card title="TelegramTools" icon="telegram">
+    Telegram integration
+  </Card>
+  <Card title="WhatsAppTools" icon="whatsapp">
+    WhatsApp messaging
+  </Card>
+  <Card title="TwilioTools" icon="phone">
+    SMS and voice
+  </Card>
+  <Card title="ResendTools" icon="envelope">
+    Email delivery
+  </Card>
+  <Card title="GmailTools" icon="google">
+    Gmail integration
+  </Card>
+  <Card title="WebexTools" icon="video">
+    Webex meetings
+  </Card>
+  <Card title="ZoomTools" icon="video">
+    Zoom meetings
+  </Card>
+</CardGroup>
+
+### Productivity Tools
+
+<CardGroup cols={3}>
+  <Card title="NotionTools" icon="notion">
+    Notion workspace
+  </Card>
+  <Card title="GoogleSheetsTools" icon="table">
+    Spreadsheet operations
+  </Card>
+  <Card title="GoogleDriveTools" icon="google-drive">
+    File storage
+  </Card>
+  <Card title="GoogleCalendarTools" icon="calendar">
+    Calendar management
+  </Card>
+  <Card title="TrelloTools" icon="trello">
+    Kanban boards
+  </Card>
+  <Card title="TodoistTools" icon="list-check">
+    Task management
+  </Card>
+  <Card title="CalComTools" icon="calendar-check">
+    Scheduling
+  </Card>
+  <Card title="ConfluenceTools" icon="confluence">
+    Wiki and docs
+  </Card>
+</CardGroup>
+
+### Financial Tools
+
+<CardGroup cols={3}>
+  <Card title="YFinanceTools" icon="chart-candlestick">
+    Stock market data
+  </Card>
+  <Card title="OpenBBTools" icon="chart-line">
+    Investment research
+  </Card>
+  <Card title="FinancialDatasetsTools" icon="coins">
+    Financial data API
+  </Card>
+  <Card title="EVMTools" icon="ethereum">
+    Ethereum blockchain
+  </Card>
+</CardGroup>
+
+### Web Scraping & Content Tools
+
+<CardGroup cols={3}>
+  <Card title="FirecrawlTools" icon="fire">
+    Web scraping
+  </Card>
+  <Card title="SpiderTools" icon="spider">
+    Advanced crawling
+  </Card>
+  <Card title="Crawl4AITools" icon="robot">
+    AI-powered crawling
+  </Card>
+  <Card title="BrowserbaseTools" icon="browser">
+    Browser automation
+  </Card>
+  <Card title="AgentQLTools" icon="code">
+    DOM querying
+  </Card>
+  <Card title="ApifyTools" icon="cloud">
+    Web automation
+  </Card>
+  <Card title="ScrapegraphTools" icon="diagram-project">
+    Graph scraping
+  </Card>
+  <Card title="TrafilaturaTools" icon="file-alt">
+    Content extraction
+  </Card>
+  <Card title="NewspaperTools" icon="newspaper">
+    Article extraction
+  </Card>
+  <Card title="WebsiteTools" icon="globe">
+    Website interactions
+  </Card>
+</CardGroup>
+
+### Knowledge & Memory Tools
+
+<CardGroup cols={3}>
+  <Card title="KnowledgeTools" icon="brain">
+    RAG knowledge base
+  </Card>
+  <Card title="MemoryTools" icon="brain">
+    Agent memory
+  </Card>
+  <Card title="Mem0Tools" icon="database">
+    Memory management
+  </Card>
+  <Card title="ZepTools" icon="memory">
+    Long-term memory
+  </Card>
+</CardGroup>
+
+### Content & Media Tools
+
+<CardGroup cols={3}>
+  <Card title="DALLETools" icon="image">
+    Image generation
+  </Card>
+  <Card title="UnsplashTools" icon="camera">
+    Stock photos
+  </Card>
+  <Card title="GiphyTools" icon="gif">
+    GIF search
+  </Card>
+  <Card title="MoviePyTools" icon="film">
+    Video editing
+  </Card>
+  <Card title="OpenCVTools" icon="eye">
+    Computer vision
+  </Card>
+  <Card title="MLXTranscribeTools" icon="closed-captioning">
+    Audio transcription
+  </Card>
+</CardGroup>
+
+### Utility Tools
+
+<CardGroup cols={3}>
+  <Card title="CalculatorTools" icon="calculator">
+    Math operations
+  </Card>
+  <Card title="FileTools" icon="file">
+    File operations
+  </Card>
+  <Card title="LocalFileSystemTools" icon="folder">
+    File system access
+  </Card>
+  <Card title="EmailTools" icon="envelope">
+    Email utilities
+  </Card>
+  <Card title="APITools" icon="plug">
+    Generic API calls
+  </Card>
+  <Card title="SleepTools" icon="clock">
+    Delays and timing
+  </Card>
+  <Card title="VisualizationTools" icon="chart-pie">
+    Data visualization
+  </Card>
+</CardGroup>
+
+### Research & Information Tools
+
+<CardGroup cols={3}>
+  <Card title="ArxivTools" icon="graduation-cap">
+    Academic papers
+  </Card>
+  <Card title="PubMedTools" icon="notes-medical">
+    Medical research
+  </Card>
+  <Card title="WikipediaTools" icon="wikipedia-w">
+    Wikipedia search
+  </Card>
+  <Card title="HackerNewsTools" icon="hacker-news">
+    Tech news
+  </Card>
+  <Card title="RedditTools" icon="reddit">
+    Reddit posts
+  </Card>
+  <Card title="YoutubeTools" icon="youtube">
+    YouTube videos
+  </Card>
+</CardGroup>
+
+### Cloud & Infrastructure Tools
+
+<CardGroup cols={3}>
+  <Card title="AWSLambdaTools" icon="aws">
+    Serverless functions
+  </Card>
+  <Card title="AWSSESTools" icon="envelope">
+    Email service
+  </Card>
+  <Card title="AirflowTools" icon="wind">
+    Workflow orchestration
+  </Card>
+  <Card title="E2BTools" icon="box">
+    Code execution sandbox
+  </Card>
+</CardGroup>
+
+### E-commerce & Business Tools
+
+<CardGroup cols={3}>
+  <Card title="ShopifyTools" icon="shopify">
+    E-commerce platform
+  </Card>
+  <Card title="BrandfetchTools" icon="building">
+    Brand assets
+  </Card>
+  <Card title="ValyuTools" icon="hand-holding-dollar">
+    Business intelligence
+  </Card>
+</CardGroup>
+
+### Other Specialized Tools
+
+<CardGroup cols={3}>
+  <Card title="OpenWeatherTools" icon="cloud-sun">
+    Weather data
+  </Card>
+  <Card title="GoogleMapsTools" icon="map">
+    Maps and geocoding
+  </Card>
+  <Card title="NanoBananaTools" icon="mobile">
+    Mobile automation
+  </Card>
+  <Card title="SearcxngTools" icon="search">
+    Metasearch engine
+  </Card>
+  <Card title="SeltzTools" icon="sparkles">
+    Specialized utilities
+  </Card>
+  <Card title="OxylabsTools" icon="server">
+    Proxy and scraping
+  </Card>
+  <Card title="BrightDataTools" icon="database">
+    Data collection
+  </Card>
+</CardGroup>
+
+## Tool Integration Patterns
+
+### Model Context Protocol (MCP)
+
+Connect to any MCP server to access external tools:
+
+```python
+from agno.agent import Agent
+from agno.tools.mcp import MCPTools
+
+agent = Agent(
+    tools=[MCPTools(command="npx -y @modelcontextprotocol/server-filesystem /tmp")]
+)
+```
+
+<Note>
+See the [MCP Integration](/tools/mcp) page for detailed usage.
+</Note>
+
+### Custom Tools
+
+Create your own tools using the `@tool` decorator or by subclassing `Toolkit`:
+
+```python
+from agno.tools import tool
+
+@tool
+def custom_function(param: str) -> str:
+    """Description of what this tool does."""
+    return f"Result: {param}"
+```
+
+<Note>
+See the [Custom Tools](/tools/custom-tools) page for detailed examples.
+</Note>
+
+## Using Tools with Agents
+
+### Basic Usage
+
+```python
+from agno.agent import Agent
+from agno.tools.yfinance import YFinanceTools
+
+agent = Agent(
+    tools=[YFinanceTools()],
+    instructions="You are a financial analyst."
+)
+
+agent.print_response("What is the current price of NVDA?")
+```
+
+### Multiple Tools
+
+```python
+from agno.agent import Agent
+from agno.tools.duckduckgo import DuckDuckGoTools
+from agno.tools.yfinance import YFinanceTools
+
+agent = Agent(
+    tools=[
+        DuckDuckGoTools(),
+        YFinanceTools(),
+    ],
+    instructions="You can search the web and get financial data."
+)
+```
+
+### Selective Tool Functions
+
+Many toolkits allow you to enable only specific functions:
+
+```python
+from agno.tools.yfinance import YFinanceTools
+
+# Only enable stock price and company info
+tools = YFinanceTools(
+    enable_stock_price=True,
+    enable_company_info=True,
+    enable_historical_prices=False,
+)
+```
+
+## Tool Configuration
+
+### Include/Exclude Tools
+
+Filter which tools from a toolkit are available:
+
+```python
+from agno.tools.github import GithubTools
+
+# Only include specific tools
+tools = GithubTools(
+    include_tools=["search_repositories", "get_repository"]
+)
+
+# Exclude specific tools
+tools = GithubTools(
+    exclude_tools=["delete_repository", "delete_file"]
+)
+```
+
+### Tool Caching
+
+Enable caching to avoid redundant API calls:
+
+```python
+from agno.tools.yfinance import YFinanceTools
+
+tools = YFinanceTools(
+    cache_results=True,
+    cache_ttl=3600,  # 1 hour
+    cache_dir="/tmp/tool_cache"
+)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Built-in Tools" icon="toolbox" href="/tools/built-in">
+    Explore commonly used built-in tools with examples
+  </Card>
+  <Card title="Custom Tools" icon="code" href="/tools/custom-tools">
+    Learn how to create your own custom tools
+  </Card>
+  <Card title="MCP Integration" icon="plug" href="/tools/mcp">
+    Connect to Model Context Protocol servers
+  </Card>
+  <Card title="Tool Cookbook" icon="book" href="https://github.com/agno-agi/agno/tree/main/cookbook/91_tools">
+    See real-world tool examples in the cookbook
+  </Card>
+</CardGroup>

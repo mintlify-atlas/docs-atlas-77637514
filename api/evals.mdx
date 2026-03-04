@@ -1,0 +1,322 @@
+---
+title: Evaluations
+description: Evaluate and test agent performance
+---
+
+Evaluations (evals) enable you to systematically test agent performance, validate outputs, and ensure quality. They can be used for testing, monitoring, and continuous improvement.
+
+## BaseEval
+
+The `BaseEval` class is similar to guardrails but designed for evaluation and logging rather than blocking execution.
+
+```python
+from agno.eval import BaseEval
+from agno.run.agent import RunInput
+
+class MyEval(BaseEval):
+    def check(self, run_input: RunInput) -> None:
+        """Evaluate and log, don't block."""
+        # Log metrics, don't raise exceptions
+        print(f"Input length: {len(run_input.message)}")
+    
+    async def async_check(self, run_input: RunInput) -> None:
+        """Async evaluation."""
+        print(f"Input length: {len(run_input.message)}")
+```
+
+## Usage with Agents
+
+```python
+from agno import Agent
+from agno.eval import BaseEval
+
+class ResponseQuality(BaseEval):
+    def check(self, run_input: RunInput) -> None:
+        response = run_input.run_response
+        if response:
+            # Log quality metrics
+            length = len(response.content or "")
+            print(f"Response length: {length}")
+            
+            # Store for analysis
+            self.log_metric("response_length", length)
+    
+    async def async_check(self, run_input: RunInput) -> None:
+        self.check(run_input)
+
+agent = Agent(
+    model="gpt-4o",
+    post_hooks=[ResponseQuality()]  # Runs after response
+)
+```
+
+## Example Evaluations
+
+<CodeGroup>
+```python Response Time Tracking
+from agno.eval import BaseEval
+import time
+
+class LatencyEval(BaseEval):
+    def __init__(self):
+        self.latencies = []
+    
+    def check(self, run_input: RunInput) -> None:
+        response = run_input.run_response
+        if response and response.metrics:
+            latency = response.metrics.time_to_first_token
+            if latency:
+                self.latencies.append(latency)
+                print(f"TTFT: {latency:.2f}s")
+                
+                # Calculate running average
+                avg = sum(self.latencies) / len(self.latencies)
+                print(f"Avg TTFT: {avg:.2f}s")
+    
+    async def async_check(self, run_input: RunInput) -> None:
+        self.check(run_input)
+
+agent = Agent(
+    model="gpt-4o",
+    post_hooks=[LatencyEval()]
+)
+```
+
+```python Output Validation
+from agno.eval import BaseEval
+import re
+
+class OutputFormatEval(BaseEval):
+    """Validate output format without blocking."""
+    
+    def check(self, run_input: RunInput) -> None:
+        response = run_input.run_response
+        if not response or not response.content:
+            return
+        
+        content = response.content
+        
+        # Check for markdown formatting
+        has_markdown = bool(re.search(r'[#*`\[\]]', content))
+        
+        # Check for code blocks
+        has_code = bool(re.search(r'```', content))
+        
+        # Log results
+        print(f"Has markdown: {has_markdown}")
+        print(f"Has code blocks: {has_code}")
+        
+        # Store for analysis
+        self.log({
+            "has_markdown": has_markdown,
+            "has_code": has_code,
+            "length": len(content)
+        })
+    
+    async def async_check(self, run_input: RunInput) -> None:
+        self.check(run_input)
+```
+
+```python Cost Tracking
+from agno.eval import BaseEval
+
+class CostEval(BaseEval):
+    def __init__(self):
+        self.total_cost = 0.0
+        self.pricing = {
+            "gpt-4o": {"input": 0.0025, "output": 0.010},
+            "gpt-4o-mini": {"input": 0.00015, "output": 0.0006}
+        }
+    
+    def check(self, run_input: RunInput) -> None:
+        response = run_input.run_response
+        if not response or not response.metrics:
+            return
+        
+        model_id = run_input.model.id if run_input.model else "unknown"
+        pricing = self.pricing.get(model_id, {"input": 0, "output": 0})
+        
+        input_tokens = response.metrics.input_tokens or 0
+        output_tokens = response.metrics.output_tokens or 0
+        
+        cost = (
+            (input_tokens / 1000) * pricing["input"] +
+            (output_tokens / 1000) * pricing["output"]
+        )
+        
+        self.total_cost += cost
+        
+        print(f"Run cost: ${cost:.4f}")
+        print(f"Total cost: ${self.total_cost:.4f}")
+    
+    async def async_check(self, run_input: RunInput) -> None:
+        self.check(run_input)
+```
+
+```python Semantic Similarity
+from agno.eval import BaseEval
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+
+class SemanticEval(BaseEval):
+    """Evaluate semantic similarity to expected output."""
+    
+    def __init__(self, embedder):
+        self.embedder = embedder
+        self.expected_outputs = {}
+    
+    def add_expected(self, input_text: str, expected_output: str):
+        """Add expected output for an input."""
+        self.expected_outputs[input_text] = expected_output
+    
+    def check(self, run_input: RunInput) -> None:
+        response = run_input.run_response
+        if not response or not response.content:
+            return
+        
+        input_text = run_input.message
+        expected = self.expected_outputs.get(input_text)
+        
+        if not expected:
+            return
+        
+        # Compute embeddings
+        actual_emb = self.embedder.embed(response.content)
+        expected_emb = self.embedder.embed(expected)
+        
+        # Calculate similarity
+        similarity = cosine_similarity(
+            [actual_emb], [expected_emb]
+        )[0][0]
+        
+        print(f"Semantic similarity: {similarity:.3f}")
+        
+        if similarity < 0.8:
+            print("Warning: Low similarity to expected output")
+    
+    async def async_check(self, run_input: RunInput) -> None:
+        self.check(run_input)
+```
+
+```python A/B Testing
+from agno.eval import BaseEval
+import random
+
+class ABTestEval(BaseEval):
+    """A/B test different prompts or models."""
+    
+    def __init__(self):
+        self.results = {"A": [], "B": []}
+    
+    def check(self, run_input: RunInput) -> None:
+        response = run_input.run_response
+        if not response:
+            return
+        
+        # Determine variant (set in metadata)
+        variant = run_input.metadata.get("variant", "A")
+        
+        # Collect metrics
+        metrics = {
+            "length": len(response.content or ""),
+            "tokens": response.metrics.total_tokens if response.metrics else 0,
+            "latency": response.metrics.time_to_first_token if response.metrics else 0
+        }
+        
+        self.results[variant].append(metrics)
+        
+        # Print summary
+        print(f"Variant {variant}: {len(self.results[variant])} samples")
+    
+    def get_summary(self):
+        """Get A/B test summary."""
+        for variant, results in self.results.items():
+            if not results:
+                continue
+            
+            avg_length = sum(r["length"] for r in results) / len(results)
+            avg_tokens = sum(r["tokens"] for r in results) / len(results)
+            
+            print(f"Variant {variant}:")
+            print(f"  Avg length: {avg_length:.1f}")
+            print(f"  Avg tokens: {avg_tokens:.1f}")
+    
+    async def async_check(self, run_input: RunInput) -> None:
+        self.check(run_input)
+
+# Usage
+ab_eval = ABTestEval()
+
+agent = Agent(
+    model="gpt-4o",
+    post_hooks=[ab_eval]
+)
+
+# Run with different variants
+for i in range(100):
+    variant = random.choice(["A", "B"])
+    agent.run(
+        "Test message",
+        metadata={"variant": variant}
+    )
+
+ab_eval.get_summary()
+```
+</CodeGroup>
+
+## Eval Datasets
+
+Create eval datasets for systematic testing:
+
+```python
+from agno.eval import BaseEval
+
+class DatasetEval(BaseEval):
+    def __init__(self, dataset):
+        self.dataset = dataset
+        self.results = []
+    
+    def run_evals(self, agent):
+        """Run evaluations on dataset."""
+        for item in self.dataset:
+            response = agent.run(item["input"])
+            
+            result = {
+                "input": item["input"],
+                "expected": item["expected"],
+                "actual": response.content,
+                "passed": self.evaluate(item["expected"], response.content)
+            }
+            
+            self.results.append(result)
+        
+        # Print summary
+        passed = sum(1 for r in self.results if r["passed"])
+        total = len(self.results)
+        print(f"Passed: {passed}/{total} ({100*passed/total:.1f}%)")
+    
+    def evaluate(self, expected, actual):
+        """Evaluate if actual matches expected."""
+        # Your evaluation logic
+        return expected.lower() in actual.lower()
+
+# Usage
+dataset = [
+    {"input": "What is 2+2?", "expected": "4"},
+    {"input": "What is the capital of France?", "expected": "Paris"},
+]
+
+eval = DatasetEval(dataset)
+agent = Agent(model="gpt-4o")
+eval.run_evals(agent)
+```
+
+## Best Practices
+
+1. **Don't block**: Evals should log/measure, not raise exceptions
+2. **Collect metrics**: Store metrics for analysis
+3. **Multiple evals**: Use different evals for different aspects
+4. **Datasets**: Create comprehensive eval datasets
+5. **Baselines**: Establish baselines to measure improvement
+6. **CI/CD**: Run evals in CI/CD pipelines
+7. **Monitoring**: Use evals in production for monitoring

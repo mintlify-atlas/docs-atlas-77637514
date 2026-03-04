@@ -1,0 +1,547 @@
+---
+title: Production Examples
+description: Deploy agents, teams, and workflows to production with AgentOS - complete with APIs, client SDKs, and persistence.
+---
+
+AgentOS turns your agents, teams, and workflows into production-ready APIs with built-in persistence, authentication, and client SDKs.
+
+## Basic AgentOS Setup
+
+The minimal setup to serve agents as APIs.
+
+```python basic.py
+from agno.agent import Agent
+from agno.db.postgres import PostgresDb
+from agno.models.openai import OpenAIChat
+from agno.os import AgentOS
+from agno.team import Team
+from agno.workflow.step import Step
+from agno.workflow.workflow import Workflow
+
+# Setup database
+db = PostgresDb(
+    id="basic-db",
+    db_url="postgresql+psycopg://ai:ai@localhost:5532/ai"
+)
+
+# Create agents
+basic_agent = Agent(
+    name="Basic Agent",
+    db=db,
+    enable_session_summaries=True,
+    update_memory_on_run=True,
+    add_history_to_context=True,
+    num_history_runs=3,
+    markdown=True,
+)
+
+# Create teams
+basic_team = Team(
+    id="basic-team",
+    name="Basic Team",
+    model=OpenAIChat(id="gpt-4o"),
+    db=db,
+    members=[basic_agent],
+    update_memory_on_run=True,
+)
+
+# Create workflows
+basic_workflow = Workflow(
+    id="basic-workflow",
+    name="Basic Workflow",
+    description="Simple workflow",
+    db=db,
+    steps=[Step(name="step1", agent=basic_agent)],
+)
+
+# Setup AgentOS
+agent_os = AgentOS(
+    description="Example AgentOS application",
+    agents=[basic_agent],
+    teams=[basic_team],
+    workflows=[basic_workflow],
+)
+
+app = agent_os.get_app()
+
+if __name__ == "__main__":
+    # Serve on http://localhost:7777
+    agent_os.serve(app="basic:app", reload=True)
+```
+
+<Note>
+**What you get:**
+- REST APIs for agents, teams, and workflows
+- Automatic persistence of sessions and memory
+- OpenAPI/Swagger docs at `/docs`
+- Configuration endpoint at `/config`
+</Note>
+
+---
+
+## Full-Featured AgentOS
+
+Complete setup with knowledge, tools, and multiple agents.
+
+```python demo.py
+from agno.agent import Agent
+from agno.db.postgres import PostgresDb
+from agno.knowledge.knowledge import Knowledge
+from agno.models.openai import OpenAIChat
+from agno.os import AgentOS
+from agno.team import Team
+from agno.tools.mcp import MCPTools
+from agno.tools.websearch import WebSearchTools
+from agno.vectordb.pgvector import PgVector
+
+# Database configuration
+db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
+db = PostgresDb(db_url=db_url)
+
+# Vector database for knowledge
+vector_db = PgVector(
+    db_url=db_url,
+    table_name="agno_docs",
+)
+
+knowledge = Knowledge(
+    name="Agno Docs",
+    contents_db=db,
+    vector_db=vector_db,
+)
+
+# Create specialized agents
+agno_agent = Agent(
+    name="Agno Agent",
+    model=OpenAIChat(id="gpt-4.1"),
+    tools=[MCPTools(transport="streamable-http", url="https://docs.agno.com/mcp")],
+    db=db,
+    update_memory_on_run=True,
+    knowledge=knowledge,
+    markdown=True,
+)
+
+research_agent = Agent(
+    name="Research Agent",
+    role="Research agent",
+    id="research_agent",
+    model=OpenAIChat(id="gpt-5.2"),
+    instructions=["You are a research agent"],
+    tools=[WebSearchTools()],
+    db=db,
+    update_memory_on_run=True,
+)
+
+# Create research team
+research_team = Team(
+    name="Research Team",
+    description="A team that researches the web",
+    members=[research_agent],
+    model=OpenAIChat(id="gpt-4.1"),
+    id="research_team",
+    instructions=["You are the lead researcher of a research team."],
+    db=db,
+    update_memory_on_run=True,
+    add_datetime_to_context=True,
+    markdown=True,
+)
+
+# Create AgentOS
+agent_os = AgentOS(
+    id="agentos-demo",
+    agents=[agno_agent],
+    teams=[research_team],
+)
+
+app = agent_os.get_app()
+
+if __name__ == "__main__":
+    agent_os.serve(app="demo:app", port=7777, reload=True)
+```
+
+<Tip>
+**Production checklist:**
+- ✅ Use PostgreSQL (not SQLite) for persistence
+- ✅ Set `update_memory_on_run=True` for memory
+- ✅ Enable authentication with `OS_SECURITY_KEY` env var
+- ✅ Configure proper database connection pooling
+</Tip>
+
+---
+
+## Client SDK - Basic Connection
+
+Connect to your AgentOS instance from Python.
+
+```python basic_client.py
+import asyncio
+from agno.client import AgentOSClient
+
+async def main():
+    # Connect to AgentOS
+    client = AgentOSClient(base_url="http://localhost:7777")
+    
+    # Get configuration
+    config = await client.aget_config()
+    print(f"Connected to: {config.name or config.os_id}")
+    print(f"Available agents: {[a.id for a in (config.agents or [])]}")
+    print(f"Available teams: {[t.id for t in (config.teams or [])]}")
+    print(f"Available workflows: {[w.id for w in (config.workflows or [])]}")
+    
+    # Get agent details
+    if config.agents:
+        agent_id = config.agents[0].id
+        agent = await client.aget_agent(agent_id)
+        print(f"\nAgent: {agent.name}")
+        print(f"  Model: {agent.model}")
+        print(f"  Tools: {len(agent.tools or [])}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+---
+
+## Client SDK - Run Agents
+
+Execute agents remotely via the client.
+
+```python run_agents.py
+import asyncio
+from agno.client import AgentOSClient
+
+async def main():
+    client = AgentOSClient(base_url="http://localhost:7777")
+    
+    # Sync run
+    response = await client.arun_agent(
+        agent_id="Assistant",
+        message="What is 15% of 847?",
+    )
+    print(f"Response: {response.content}")
+    
+    # Streaming run
+    print("\n--- Streaming Response ---")
+    stream = client.arun_agent(
+        agent_id="Assistant",
+        message="Explain quantum computing in simple terms",
+        stream=True,
+    )
+    
+    async for chunk in stream:
+        if chunk.content:
+            print(chunk.content, end="", flush=True)
+    print()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+---
+
+## Client SDK - Session Management
+
+Manage conversations and sessions.
+
+```python session_management.py
+import asyncio
+from agno.client import AgentOSClient
+
+async def main():
+    client = AgentOSClient(base_url="http://localhost:7777")
+    
+    # Create a session
+    session_id = "my-conversation"
+    
+    # First message in session
+    response1 = await client.arun_agent(
+        agent_id="Assistant",
+        message="My favorite color is blue",
+        session_id=session_id,
+    )
+    
+    # Second message - agent remembers
+    response2 = await client.arun_agent(
+        agent_id="Assistant",
+        message="What's my favorite color?",
+        session_id=session_id,
+    )
+    print(response2.content)  # "Your favorite color is blue"
+    
+    # Get session history
+    sessions = await client.aget_agent_sessions(
+        agent_id="Assistant",
+        user_id="user@example.com",
+    )
+    print(f"\nFound {len(sessions)} sessions")
+    
+    # Get session details
+    session = await client.aget_agent_session(
+        agent_id="Assistant",
+        session_id=session_id,
+    )
+    print(f"Session runs: {len(session.runs or [])}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+<Note>
+**Session management:**
+- Same `session_id` = continuous conversation
+- Each `user_id` has separate sessions
+- Sessions persist in the database
+</Note>
+
+---
+
+## Client SDK - Memory Operations
+
+Manage user memories across sessions.
+
+```python memory_operations.py
+import asyncio
+from agno.client import AgentOSClient
+
+async def main():
+    client = AgentOSClient(base_url="http://localhost:7777")
+    user_id = "user@example.com"
+    
+    # Agent learns about user
+    await client.arun_agent(
+        agent_id="Assistant",
+        message="I'm a Python developer interested in AI",
+        user_id=user_id,
+    )
+    
+    # Get user memories
+    memories = await client.aget_agent_memories(
+        agent_id="Assistant",
+        user_id=user_id,
+    )
+    print(f"Stored memories: {len(memories)}")
+    for memory in memories:
+        print(f"  - {memory.memory}")
+    
+    # Agent uses memory in new session
+    response = await client.arun_agent(
+        agent_id="Assistant",
+        message="What do you know about me?",
+        user_id=user_id,
+        session_id="new-session",  # Different session!
+    )
+    print(f"\nResponse: {response.content}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+---
+
+## Client SDK - Knowledge Search
+
+Search knowledge bases and upload content.
+
+```python knowledge_operations.py
+import asyncio
+from agno.client import AgentOSClient
+
+async def main():
+    client = AgentOSClient(base_url="http://localhost:7777")
+    
+    # Upload content to knowledge base
+    await client.aupload_content(
+        knowledge_id="Agno Docs",
+        url="https://docs.agno.com/introduction",
+    )
+    
+    # Search knowledge
+    results = await client.asearch_knowledge(
+        knowledge_id="Agno Docs",
+        query="What is Agno?",
+        num_results=5,
+    )
+    
+    print(f"Found {len(results)} results:")
+    for result in results:
+        print(f"  - {result.name}: {result.content[:100]}...")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+---
+
+## Client SDK - Run Teams
+
+Execute multi-agent teams.
+
+```python run_teams.py
+import asyncio
+from agno.client import AgentOSClient
+
+async def main():
+    client = AgentOSClient(base_url="http://localhost:7777")
+    
+    # Run team
+    response = await client.arun_team(
+        team_id="research_team",
+        message="Research the latest AI developments",
+    )
+    print(response.content)
+    
+    # Streaming team run
+    print("\n--- Streaming Team Response ---")
+    stream = client.arun_team(
+        team_id="research_team",
+        message="What are the top 3 AI trends?",
+        stream=True,
+    )
+    
+    async for chunk in stream:
+        if chunk.content:
+            print(chunk.content, end="", flush=True)
+    print()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+---
+
+## Client SDK - Run Workflows
+
+Execute workflows remotely.
+
+```python run_workflows.py
+import asyncio
+from agno.client import AgentOSClient
+
+async def main():
+    client = AgentOSClient(base_url="http://localhost:7777")
+    
+    # Run workflow
+    response = await client.arun_workflow(
+        workflow_id="basic-workflow",
+        input="Process this data",
+    )
+    print(response.content)
+    
+    # Get workflow sessions
+    sessions = await client.aget_workflow_sessions(
+        workflow_id="basic-workflow",
+    )
+    print(f"\nWorkflow has {len(sessions)} sessions")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+---
+
+## Authentication
+
+Secure your AgentOS instance.
+
+```python authenticated_server.py
+import os
+from agno.os import AgentOS
+
+# Set security key via environment variable
+os.environ["OS_SECURITY_KEY"] = "your-secret-key"
+
+agent_os = AgentOS(
+    id="secure-os",
+    agents=[agent],
+)
+
+app = agent_os.get_app()
+
+if __name__ == "__main__":
+    agent_os.serve(app="authenticated_server:app")
+```
+
+```python authenticated_client.py
+from agno.client import AgentOSClient
+
+# Connect with authentication
+client = AgentOSClient(
+    base_url="http://localhost:7777",
+    api_key="your-secret-key",
+)
+
+# All requests are authenticated
+response = await client.arun_agent(
+    agent_id="Assistant",
+    message="Hello",
+)
+```
+
+<Tip>
+**Security best practices:**
+- Always use `OS_SECURITY_KEY` in production
+- Use HTTPS in production
+- Rotate API keys regularly
+- Use environment variables, never hardcode keys
+</Tip>
+
+---
+
+## Deployment
+
+Deploy AgentOS to production.
+
+```bash
+# Install production dependencies
+pip install agno[postgres,server]
+
+# Run with production server
+gunicorn server:app \
+  --workers 4 \
+  --worker-class uvicorn.workers.UvicornWorker \
+  --bind 0.0.0.0:8000
+
+# Or use the CLI
+agno serve server:app --workers 4 --port 8000
+```
+
+<Accordion title="Production deployment checklist">
+1. **Database**
+   - Use PostgreSQL (not SQLite)
+   - Configure connection pooling
+   - Set up backups
+
+2. **Security**
+   - Set `OS_SECURITY_KEY` environment variable
+   - Use HTTPS
+   - Configure CORS if needed
+
+3. **Performance**
+   - Use multiple workers (gunicorn/uvicorn)
+   - Configure proper timeouts
+   - Enable caching where appropriate
+
+4. **Monitoring**
+   - Set up logging
+   - Monitor API endpoints
+   - Track token usage and costs
+
+5. **Infrastructure**
+   - Use a process manager (systemd, supervisor)
+   - Set up health checks
+   - Configure auto-restart on failure
+</Accordion>
+
+---
+
+## Next Steps
+
+You're ready for production! Explore:
+
+- [Agents](/cookbook/agents) - Advanced agent patterns
+- [Teams](/cookbook/teams) - Team coordination
+- [Workflows](/cookbook/workflows) - Complex orchestration
+
+<Note>
+For more production examples, see the [source code](https://github.com/agno-agi/agno/tree/main/cookbook/05_agent_os).
+</Note>

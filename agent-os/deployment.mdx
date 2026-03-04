@@ -1,0 +1,778 @@
+---
+title: Deploying AgentOS
+description: Production deployment strategies for AgentOS applications
+---
+
+Deploy your AgentOS applications to production with confidence using these battle-tested strategies and best practices.
+
+## Deployment Overview
+
+AgentOS is a FastAPI application and can be deployed anywhere Python web applications run. This guide covers:
+
+- Local development setup
+- Production server deployment (Uvicorn, Gunicorn)
+- Containerization with Docker
+- Cloud platform deployment
+- Environment configuration
+- Performance optimization
+
+## Local Development
+
+For development, use the built-in `serve()` method:
+
+```python app.py
+from agno.os import AgentOS
+
+agent_os = AgentOS(agents=[agent])
+app = agent_os.get_app()
+
+if __name__ == "__main__":
+    agent_os.serve(
+        app="app:app",
+        host="localhost",
+        port=7777,
+        reload=True,  # Auto-reload on code changes
+    )
+```
+
+Run with:
+
+```bash
+python app.py
+```
+
+## Production Server
+
+### Using Uvicorn
+
+Uvicorn is an ASGI server optimized for async Python applications:
+
+```bash
+# Install uvicorn
+pip install uvicorn[standard]
+
+# Run with production settings
+uvicorn app:app \
+  --host 0.0.0.0 \
+  --port 7777 \
+  --workers 4 \
+  --log-level info
+```
+
+<Note>
+For production, always bind to `0.0.0.0` to accept external connections, not `localhost`.
+</Note>
+
+### Using Gunicorn with Uvicorn Workers
+
+For better process management and zero-downtime restarts:
+
+```bash
+# Install gunicorn
+pip install gunicorn uvicorn[standard]
+
+# Run with gunicorn
+gunicorn app:app \
+  --workers 4 \
+  --worker-class uvicorn.workers.UvicornWorker \
+  --bind 0.0.0.0:7777 \
+  --timeout 300 \
+  --graceful-timeout 120 \
+  --access-logfile - \
+  --error-logfile -
+```
+
+<Warning>
+Increase timeout values when running long-running agent workflows. Default timeout is 30 seconds.
+</Warning>
+
+### Process Manager Configuration
+
+Create a `gunicorn.conf.py`:
+
+```python gunicorn.conf.py
+import multiprocessing
+import os
+
+# Server socket
+bind = "0.0.0.0:7777"
+
+# Worker processes
+workers = int(os.getenv("WEB_CONCURRENCY", multiprocessing.cpu_count() * 2 + 1))
+worker_class = "uvicorn.workers.UvicornWorker"
+
+# Timeouts
+timeout = 300  # 5 minutes for long-running agents
+graceful_timeout = 120
+keepalive = 5
+
+# Logging
+accesslog = "-"
+errorlog = "-"
+loglevel = "info"
+
+# Process naming
+proc_name = "agentos"
+
+# Server mechanics
+preload_app = True  # Load application code before worker processes fork
+max_requests = 1000  # Restart workers after this many requests
+max_requests_jitter = 50  # Randomize restart to avoid thundering herd
+```
+
+Run with:
+
+```bash
+gunicorn -c gunicorn.conf.py app:app
+```
+
+## Docker Deployment
+
+### Basic Dockerfile
+
+Create a production-ready Docker image:
+
+```dockerfile Dockerfile
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create non-root user
+RUN useradd -m -u 1000 agno && chown -R agno:agno /app
+USER agno
+
+# Expose port
+EXPOSE 7777
+
+# Run with gunicorn
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "app:app"]
+```
+
+### Multi-stage Build
+
+Optimize image size with multi-stage builds:
+
+```dockerfile Dockerfile
+# Build stage
+FROM python:3.11-slim as builder
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y gcc
+
+COPY requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+# Runtime stage
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy installed packages from builder
+COPY --from=builder /root/.local /root/.local
+
+# Copy application
+COPY . .
+
+# Make sure scripts in .local are usable
+ENV PATH=/root/.local/bin:$PATH
+
+RUN useradd -m -u 1000 agno && chown -R agno:agno /app
+USER agno
+
+EXPOSE 7777
+
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "app:app"]
+```
+
+### Docker Compose
+
+Orchestrate AgentOS with PostgreSQL:
+
+```yaml docker-compose.yml
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: agno
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: agno
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agno"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  agentos:
+    build: .
+    ports:
+      - "7777:7777"
+    environment:
+      POSTGRES_DB_URL: postgresql+psycopg://agno:${POSTGRES_PASSWORD}@postgres:5432/agno
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OS_SECURITY_KEY: ${OS_SECURITY_KEY}
+      JWT_VERIFICATION_KEY: ${JWT_VERIFICATION_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+```
+
+Run with:
+
+```bash
+# Create .env file
+cat > .env << EOF
+POSTGRES_PASSWORD=secure_password
+OPENAI_API_KEY=sk-...
+OS_SECURITY_KEY=your-secret-key
+JWT_VERIFICATION_KEY=your-jwt-key
+EOF
+
+# Start services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f agentos
+```
+
+## Cloud Platform Deployment
+
+### Railway
+
+<Steps>
+  <Step title="Install Railway CLI">
+    ```bash
+    npm install -g @railway/cli
+    ```
+  </Step>
+  
+  <Step title="Initialize project">
+    ```bash
+    railway init
+    ```
+  </Step>
+  
+  <Step title="Add PostgreSQL">
+    ```bash
+    railway add postgresql
+    ```
+  </Step>
+  
+  <Step title="Configure environment">
+    Set environment variables in Railway dashboard:
+    - `OPENAI_API_KEY`
+    - `OS_SECURITY_KEY`
+    - Railway automatically provides `DATABASE_URL`
+  </Step>
+  
+  <Step title="Deploy">
+    ```bash
+    railway up
+    ```
+  </Step>
+</Steps>
+
+### Render
+
+Create `render.yaml`:
+
+```yaml render.yaml
+services:
+  - type: web
+    name: agentos
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -c gunicorn.conf.py app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OS_SECURITY_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: agentos-db
+          property: connectionString
+
+databases:
+  - name: agentos-db
+    databaseName: agno
+    user: agno
+```
+
+Deploy via Render dashboard or CLI.
+
+### Google Cloud Run
+
+<Steps>
+  <Step title="Build container">
+    ```bash
+    gcloud builds submit --tag gcr.io/PROJECT_ID/agentos
+    ```
+  </Step>
+  
+  <Step title="Deploy to Cloud Run">
+    ```bash
+    gcloud run deploy agentos \
+      --image gcr.io/PROJECT_ID/agentos \
+      --platform managed \
+      --region us-central1 \
+      --set-env-vars OPENAI_API_KEY=sk-... \
+      --set-env-vars DATABASE_URL=postgresql://... \
+      --timeout 300 \
+      --memory 2Gi \
+      --allow-unauthenticated
+    ```
+  </Step>
+</Steps>
+
+### AWS ECS
+
+Create task definition:
+
+```json task-definition.json
+{
+  "family": "agentos",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "containerDefinitions": [
+    {
+      "name": "agentos",
+      "image": "YOUR_ECR_REPO/agentos:latest",
+      "portMappings": [
+        {
+          "containerPort": 7777,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "POSTGRES_DB_URL",
+          "value": "postgresql://..."
+        }
+      ],
+      "secrets": [
+        {
+          "name": "OPENAI_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:..."
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/agentos",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
+```
+
+## Environment Configuration
+
+### Environment Variables
+
+Create a `.env` file for local development:
+
+```bash .env
+# Database
+POSTGRES_DB_URL=postgresql+psycopg://user:pass@localhost:5432/agno
+
+# API Keys
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Security
+OS_SECURITY_KEY=your-secret-key-at-least-256-bits
+JWT_VERIFICATION_KEY=your-jwt-public-key
+
+# AgentOS Configuration
+AGNO_API_RUNTIME=production
+WEB_CONCURRENCY=4
+
+# Monitoring
+OTEL_EXPORTER_OTLP_ENDPOINT=https://your-trace-collector
+```
+
+Load environment variables:
+
+```python app.py
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+db_url = os.getenv("POSTGRES_DB_URL")
+agent_os = AgentOS(
+    agents=[agent],
+    authorization=True,
+)
+```
+
+### Secrets Management
+
+<Warning>
+Never commit secrets to version control. Use environment variables or secret managers.
+</Warning>
+
+**AWS Secrets Manager**
+
+```python
+import boto3
+import json
+
+def get_secret(secret_name):
+    client = boto3.client('secretsmanager')
+    response = client.get_secret_value(SecretId=secret_name)
+    return json.loads(response['SecretString'])
+
+secrets = get_secret('agentos/production')
+db_url = secrets['database_url']
+```
+
+**Google Secret Manager**
+
+```python
+from google.cloud import secretmanager
+
+def access_secret(project_id, secret_id):
+    client = secretmanager.SecretManagerServiceClient()
+    name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
+    response = client.access_secret_version(request={"name": name})
+    return response.payload.data.decode('UTF-8')
+
+db_url = access_secret('my-project', 'database-url')
+```
+
+## Database Configuration
+
+### Connection Pooling
+
+Configure PostgreSQL connection pools:
+
+```python
+from agno.db.postgres import PostgresDb
+
+db = PostgresDb(
+    id="production-db",
+    db_url="postgresql+psycopg://user:pass@host:5432/agno",
+    pool_size=20,  # Default: 5
+    max_overflow=40,  # Default: 10
+    pool_timeout=30,  # Default: 30
+    pool_recycle=3600,  # Recycle connections after 1 hour
+)
+```
+
+### Read Replicas
+
+Use read replicas for scaling:
+
+```python
+write_db = PostgresDb(
+    id="primary-db",
+    db_url="postgresql://primary:5432/agno",
+)
+
+read_db = PostgresDb(
+    id="replica-db",
+    db_url="postgresql://replica:5432/agno",
+)
+
+# Use read replica for read-heavy agents
+analysis_agent = Agent(name="Analyst", db=read_db)
+
+# Use primary for write-heavy agents
+writer_agent = Agent(name="Writer", db=write_db)
+```
+
+### Database Migrations
+
+AgentOS auto-provisions tables, but for custom schemas use Alembic:
+
+```bash
+# Install alembic
+pip install alembic
+
+# Initialize
+alembic init migrations
+
+# Create migration
+alembic revision --autogenerate -m "Add custom table"
+
+# Apply migration
+alembic upgrade head
+```
+
+## Performance Optimization
+
+### Worker Configuration
+
+Calculate optimal worker count:
+
+```python
+import multiprocessing
+
+# CPU-bound workloads
+workers = multiprocessing.cpu_count() * 2 + 1
+
+# I/O-bound workloads (default for agents)
+workers = multiprocessing.cpu_count() * 4
+
+# Memory-constrained environments
+workers = min(multiprocessing.cpu_count() * 2, 4)
+```
+
+### Async Operations
+
+Ensure async is used for I/O operations:
+
+```python
+from agno.db.postgres import PostgresDb
+
+# Use async database
+db = PostgresDb(db_url="postgresql+psycopg://...")
+
+# AgentOS handles async automatically
+agent_os = AgentOS(
+    agents=[agent],
+    auto_provision_dbs=True,  # Async table creation
+)
+```
+
+### Background Tasks
+
+Run hooks and evaluations in background:
+
+```python
+agent_os = AgentOS(
+    agents=[agent],
+    run_hooks_in_background=True,  # Non-blocking hooks
+)
+```
+
+### Caching
+
+Implement response caching:
+
+```python
+from functools import lru_cache
+from fastapi import FastAPI
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
+from redis import asyncio as aioredis
+
+app = agent_os.get_app()
+
+@app.on_event("startup")
+async def startup():
+    redis = aioredis.from_url("redis://localhost")
+    FastAPICache.init(RedisBackend(redis), prefix="agentos-cache")
+```
+
+## Health Checks
+
+AgentOS provides a `/health` endpoint:
+
+```bash
+curl http://localhost:7777/health
+```
+
+Custom health checks:
+
+```python
+from fastapi import FastAPI
+
+app = agent_os.get_app()
+
+@app.get("/health/detailed")
+async def detailed_health():
+    # Check database connectivity
+    db_healthy = await check_database()
+    
+    # Check external services
+    api_healthy = await check_external_apis()
+    
+    return {
+        "status": "healthy" if db_healthy and api_healthy else "unhealthy",
+        "database": db_healthy,
+        "apis": api_healthy,
+    }
+```
+
+## Monitoring
+
+### Logging
+
+Configure structured logging:
+
+```python
+import logging
+import json
+
+class JSONFormatter(logging.Formatter):
+    def format(self, record):
+        log_obj = {
+            "timestamp": self.formatTime(record),
+            "level": record.levelname,
+            "message": record.getMessage(),
+            "module": record.module,
+        }
+        return json.dumps(log_obj)
+
+handler = logging.StreamHandler()
+handler.setFormatter(JSONFormatter())
+logging.root.addHandler(handler)
+logging.root.setLevel(logging.INFO)
+```
+
+### Metrics
+
+Enable built-in metrics:
+
+```python
+agent_os = AgentOS(
+    agents=[agent],
+    tracing=True,  # OpenTelemetry tracing
+)
+```
+
+Access metrics:
+
+```bash
+curl http://localhost:7777/metrics
+```
+
+### Tracing
+
+Integrate with OpenTelemetry:
+
+```python
+import os
+os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "https://your-collector"
+
+agent_os = AgentOS(
+    agents=[agent],
+    tracing=True,
+    db=db,  # Required for tracing storage
+)
+```
+
+## Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use HTTPS" icon="lock">
+    Always use HTTPS in production with valid SSL certificates
+  </Card>
+  <Card title="Enable Authentication" icon="shield">
+    Configure JWT authentication and RBAC for all endpoints
+  </Card>
+  <Card title="Rotate Secrets" icon="key">
+    Regularly rotate API keys, tokens, and database passwords
+  </Card>
+  <Card title="Network Security" icon="network-wired">
+    Use VPCs, security groups, and firewall rules
+  </Card>
+</CardGroup>
+
+### HTTPS with Nginx
+
+```nginx nginx.conf
+server {
+    listen 443 ssl http2;
+    server_name your-domain.com;
+
+    ssl_certificate /etc/ssl/certs/cert.pem;
+    ssl_certificate_key /etc/ssl/private/key.pem;
+
+    location / {
+        proxy_pass http://localhost:7777;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # WebSocket support
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**Workers timing out**
+```python
+# Increase timeout in gunicorn.conf.py
+timeout = 600  # 10 minutes
+```
+
+**Database connection errors**
+```bash
+# Check connection pool settings
+# Increase pool_size and max_overflow in PostgresDb
+```
+
+**Out of memory**
+```bash
+# Reduce number of workers
+export WEB_CONCURRENCY=2
+
+# Or increase container memory
+```
+
+**Slow response times**
+```python
+# Enable background tasks
+agent_os = AgentOS(
+    agents=[agent],
+    run_hooks_in_background=True,
+)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="shield" href="/agent-os/authentication">
+    Secure your deployment with JWT and RBAC
+  </Card>
+  <Card title="API Reference" icon="book" href="/agent-os/api-reference">
+    Complete endpoint documentation
+  </Card>
+</CardGroup>

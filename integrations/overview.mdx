@@ -1,0 +1,422 @@
+---
+title: Integrations Overview
+description: Overview of Agno's integrations with external services, platforms, and tools
+---
+
+## Introduction
+
+Agno integrates seamlessly with a wide range of external services and platforms through its tools ecosystem. This page provides an overview of integration categories and common patterns.
+
+## Integration Categories
+
+### Developer Platforms
+
+Integrate with development tools and platforms:
+
+<CardGroup cols={2}>
+  <Card title="GitHub" icon="github" href="/tools/built-in#github-integration-githubtools">
+    Repository management, PRs, issues, code search
+  </Card>
+  <Card title="Bitbucket" icon="bitbucket">
+    Bitbucket repositories and pipelines
+  </Card>
+  <Card title="Linear" icon="list-check">
+    Issue tracking and project management
+  </Card>
+  <Card title="Jira" icon="jira">
+    Atlassian project management
+  </Card>
+</CardGroup>
+
+### Communication Platforms
+
+Connect to messaging and communication services:
+
+<CardGroup cols={2}>
+  <Card title="Slack" icon="slack" href="/tools/built-in#slack-integration-slacktools">
+    Messaging, channels, and workspace management
+  </Card>
+  <Card title="Discord" icon="discord">
+    Discord bot integration
+  </Card>
+  <Card title="Telegram" icon="telegram">
+    Telegram bot and messaging
+  </Card>
+  <Card title="WhatsApp" icon="whatsapp">
+    WhatsApp Business API
+  </Card>
+</CardGroup>
+
+### Cloud Services
+
+Integrate with cloud platforms and services:
+
+<CardGroup cols={2}>
+  <Card title="AWS Lambda" icon="aws">
+    Serverless function execution
+  </Card>
+  <Card title="AWS SES" icon="envelope">
+    Email delivery service
+  </Card>
+  <Card title="Google Cloud" icon="google">
+    BigQuery, Drive, Sheets, Calendar
+  </Card>
+  <Card title="Notion" icon="notion">
+    Workspace and knowledge management
+  </Card>
+</CardGroup>
+
+### Data & Analytics
+
+Connect to databases and analytics platforms:
+
+<CardGroup cols={2}>
+  <Card title="PostgreSQL" icon="database" href="/tools/built-in#database-postgrestools">
+    SQL database operations
+  </Card>
+  <Card title="DuckDB" icon="duck">
+    Embedded analytics database
+  </Card>
+  <Card title="Neo4j" icon="project-diagram">
+    Graph database integration
+  </Card>
+  <Card title="Redshift" icon="aws">
+    AWS data warehouse
+  </Card>
+</CardGroup>
+
+### AI Services
+
+Integrate with AI and ML platforms:
+
+<CardGroup cols={2}>
+  <Card title="OpenAI" icon="openai">
+    GPT-4, DALL-E, Whisper APIs
+  </Card>
+  <Card title="Replicate" icon="clone">
+    ML model deployment and inference
+  </Card>
+  <Card title="ElevenLabs" icon="microphone">
+    Voice synthesis and cloning
+  </Card>
+  <Card title="Fal.ai" icon="wand-magic-sparkles">
+    Fast AI model inference
+  </Card>
+</CardGroup>
+
+## Integration Patterns
+
+### API Key Authentication
+
+Most integrations use API keys for authentication:
+
+```python
+import os
+from agno.agent import Agent
+from agno.tools.github import GithubTools
+
+agent = Agent(
+    tools=[GithubTools(
+        access_token=os.getenv("GITHUB_ACCESS_TOKEN")
+    )]
+)
+```
+
+<Note>
+Always store API keys in environment variables, never hardcode them in your source code.
+</Note>
+
+### OAuth Authentication
+
+Some services require OAuth flows:
+
+```python
+from agno.tools.google import GoogleSheetsTools
+
+tools = GoogleSheetsTools(
+    credentials_file="path/to/credentials.json",
+    token_file="path/to/token.json"
+)
+```
+
+### Database Connections
+
+Database integrations use connection strings:
+
+```python
+from agno.tools.postgres import PostgresTools
+
+tools = PostgresTools(
+    db_url="postgresql+psycopg://user:pass@localhost:5432/mydb"
+)
+```
+
+### Webhook Integrations
+
+Some integrations support webhooks for real-time events:
+
+```python
+from agno.tools.slack import SlackTools
+
+tools = SlackTools(
+    token=os.getenv("SLACK_BOT_TOKEN"),
+    webhook_url=os.getenv("SLACK_WEBHOOK_URL")
+)
+```
+
+## Configuration Best Practices
+
+<Steps>
+  <Step title="Use Environment Variables">
+    Store all credentials and API keys in environment variables:
+    
+    ```python
+    import os
+    
+    api_key = os.getenv("SERVICE_API_KEY")
+    if not api_key:
+        raise ValueError("SERVICE_API_KEY environment variable not set")
+    ```
+  </Step>
+  
+  <Step title="Use .env Files Locally">
+    Keep credentials in a `.env` file (add to `.gitignore`):
+    
+    ```bash
+    # .env
+    GITHUB_ACCESS_TOKEN=ghp_xxxxxxxxxxxx
+    SLACK_BOT_TOKEN=xoxb-xxxxxxxxxxxx
+    OPENAI_API_KEY=sk-xxxxxxxxxxxx
+    ```
+    
+    Load with python-dotenv:
+    
+    ```python
+    from dotenv import load_dotenv
+    load_dotenv()
+    ```
+  </Step>
+  
+  <Step title="Implement Retry Logic">
+    Handle transient failures with retry logic:
+    
+    ```python
+    from agno.tools.github import GithubTools
+    
+    tools = GithubTools(
+        access_token=os.getenv("GITHUB_ACCESS_TOKEN"),
+        # Most tools handle retries automatically
+    )
+    ```
+  </Step>
+  
+  <Step title="Set Appropriate Timeouts">
+    Configure timeouts based on expected response times:
+    
+    ```python
+    from agno.tools.api import APITools
+    
+    tools = APITools(
+        timeout=30,  # 30 second timeout
+    )
+    ```
+  </Step>
+  
+  <Step title="Monitor Rate Limits">
+    Be aware of API rate limits and implement appropriate handling:
+    
+    ```python
+    # Many tools handle rate limiting automatically
+    # Check tool documentation for specific limits
+    ```
+  </Step>
+</Steps>
+
+## Multi-Service Integrations
+
+Combine multiple integrations in a single agent:
+
+```python
+import os
+from agno.agent import Agent
+from agno.tools.github import GithubTools
+from agno.tools.slack import SlackTools
+from agno.tools.postgres import PostgresTools
+
+agent = Agent(
+    tools=[
+        GithubTools(access_token=os.getenv("GITHUB_ACCESS_TOKEN")),
+        SlackTools(token=os.getenv("SLACK_BOT_TOKEN")),
+        PostgresTools(db_url=os.getenv("DATABASE_URL")),
+    ],
+    instructions=[
+        "You can access GitHub, Slack, and the database",
+        "Coordinate information across all services",
+        "Always confirm before making changes",
+    ]
+)
+
+agent.print_response(
+    "Check GitHub for new PRs, summarize them, and post to #engineering on Slack"
+)
+```
+
+## Integration Security
+
+### Principle of Least Privilege
+
+Only grant the minimum permissions needed:
+
+```python
+# Good: Only allow reading
+tools = GithubTools(
+    access_token=os.getenv("GITHUB_READ_TOKEN"),  # Read-only token
+    include_tools=["search_repositories", "get_repository"]  # Read operations only
+)
+
+# Avoid: Granting unnecessary write permissions
+tools = GithubTools(
+    access_token=os.getenv("GITHUB_ADMIN_TOKEN"),  # Admin token with all permissions
+)
+```
+
+### Credential Rotation
+
+Regularly rotate API keys and tokens:
+
+```python
+# Use time-limited tokens when possible
+from datetime import datetime, timedelta
+
+# Many services support token expiration
+tools = ServiceTools(
+    token=get_temporary_token(expires=datetime.now() + timedelta(hours=1))
+)
+```
+
+### Audit Logging
+
+Enable logging for security-sensitive operations:
+
+```python
+from agno.agent import Agent
+from agno.tools.github import GithubTools
+
+tools = GithubTools(
+    access_token=os.getenv("GITHUB_ACCESS_TOKEN"),
+    requires_confirmation_tools=["delete_repository", "delete_file"]
+)
+
+agent = Agent(
+    tools=[tools],
+    # Enable detailed logging
+    debug=True
+)
+```
+
+## Common Integration Examples
+
+### GitHub + Slack Integration
+
+Monitor GitHub and post updates to Slack:
+
+```python
+import os
+from agno.agent import Agent
+from agno.tools.github import GithubTools
+from agno.tools.slack import SlackTools
+
+agent = Agent(
+    tools=[
+        GithubTools(access_token=os.getenv("GITHUB_ACCESS_TOKEN")),
+        SlackTools(token=os.getenv("SLACK_BOT_TOKEN")),
+    ],
+    instructions=[
+        "Monitor GitHub repository activity",
+        "Post important updates to Slack channels",
+        "Format updates clearly with links",
+    ]
+)
+
+agent.print_response(
+    "Check for new issues in agno-agi/agno and post a summary to #updates"
+)
+```
+
+### Database + Slack Reporting
+
+Query database and send reports to Slack:
+
+```python
+from agno.agent import Agent
+from agno.tools.postgres import PostgresTools
+from agno.tools.slack import SlackTools
+
+agent = Agent(
+    tools=[
+        PostgresTools(db_url=os.getenv("DATABASE_URL")),
+        SlackTools(token=os.getenv("SLACK_BOT_TOKEN")),
+    ],
+    markdown=True,
+)
+
+agent.print_response(
+    "Query the database for today's sales metrics and "
+    "post a formatted report to #sales-metrics"
+)
+```
+
+## Troubleshooting
+
+### Authentication Errors
+
+```python
+try:
+    tools = GithubTools(access_token=os.getenv("GITHUB_ACCESS_TOKEN"))
+    agent = Agent(tools=[tools])
+    agent.print_response("List my repositories")
+except Exception as e:
+    print(f"Authentication failed: {e}")
+    print("Check that GITHUB_ACCESS_TOKEN is set correctly")
+```
+
+### Rate Limit Errors
+
+```python
+from time import sleep
+
+try:
+    agent.print_response("Search for repositories")
+except RateLimitError:
+    print("Rate limit exceeded. Waiting before retry...")
+    sleep(60)  # Wait 1 minute
+    agent.print_response("Search for repositories")
+```
+
+### Network Timeouts
+
+```python
+from agno.tools.api import APITools
+
+tools = APITools(
+    timeout=60,  # Increase timeout for slow APIs
+    retry_attempts=3,  # Retry failed requests
+)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Built-in Tools" icon="toolbox" href="/tools/built-in">
+    Explore all available integrations
+  </Card>
+  <Card title="Custom Tools" icon="code" href="/tools/custom-tools">
+    Create custom integrations
+  </Card>
+  <Card title="MCP Servers" icon="plug" href="/tools/mcp">
+    Connect to external MCP servers
+  </Card>
+  <Card title="Security Guide" icon="shield" href="/guides/security">
+    Learn about security best practices
+  </Card>
+</CardGroup>

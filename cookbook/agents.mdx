@@ -1,0 +1,383 @@
+---
+title: Agent Examples
+description: Advanced agent patterns including reasoning, multimodal capabilities, and production-ready features.
+---
+
+This page showcases the best agent examples from the Agno cookbook, covering advanced patterns and production-ready features.
+
+## Basic Agent
+
+The simplest possible agent — just a model and a name.
+
+```python basic_agent.py
+from agno.agent import Agent
+from agno.models.openai import OpenAIResponses
+
+agent = Agent(
+    name="Quickstart Agent",
+    model=OpenAIResponses(id="gpt-5.2"),
+)
+
+if __name__ == "__main__":
+    agent.print_response(
+        "Say hello and introduce yourself in one sentence.",
+        stream=True
+    )
+```
+
+---
+
+## Agent with Tool Choice Control
+
+Control when and how your agent uses tools.
+
+```python tool_choice.py
+from agno.agent import Agent
+from agno.models.openai import OpenAIResponses
+
+def get_weather(city: str) -> str:
+    return f"Weather data for {city}: 72F and clear."
+
+# Option 1: Disable tool usage
+no_tools_agent = Agent(
+    name="No-Tools Agent",
+    model=OpenAIResponses(id="gpt-5.2"),
+    tools=[get_weather],
+    tool_choice="none",  # Agent won't use tools
+)
+
+# Option 2: Auto tool usage (default)
+auto_tools_agent = Agent(
+    name="Auto-Tools Agent",
+    model=OpenAIResponses(id="gpt-5.2"),
+    tools=[get_weather],
+    tool_choice="auto",  # Agent decides when to use tools
+)
+
+# Option 3: Force specific tool
+forced_tool_agent = Agent(
+    name="Forced-Tool Agent",
+    model=OpenAIResponses(id="gpt-5.2"),
+    tools=[get_weather],
+    tool_choice={"type": "function", "name": "get_weather"},  # Always use this tool
+)
+
+if __name__ == "__main__":
+    prompt = "What is the weather in San Francisco today?"
+    no_tools_agent.print_response(prompt, stream=True)
+    auto_tools_agent.print_response(prompt, stream=True)
+    forced_tool_agent.print_response(prompt, stream=True)
+```
+
+<Note>
+**Tool choice options:**
+- `"none"` - Disable all tool usage
+- `"auto"` - Agent decides (default)
+- `{"type": "function", "name": "tool_name"}` - Force specific tool
+</Note>
+
+---
+
+## Reasoning Agent
+
+Enable extended reasoning for complex problems.
+
+```python reasoning_agent.py
+from agno.agent import Agent
+from agno.models.openai import OpenAIResponses
+
+reasoning_agent = Agent(
+    name="Reasoning Agent",
+    model=OpenAIResponses(id="gpt-5.2"),
+    reasoning=True,
+    reasoning_min_steps=2,
+    reasoning_max_steps=6,
+)
+
+if __name__ == "__main__":
+    reasoning_agent.print_response(
+        "A bat and ball cost $1.10 total. The bat costs $1.00 more than the ball. "
+        "How much does the ball cost?",
+        stream=True,
+        show_full_reasoning=True,
+    )
+```
+
+<Tip>
+Reasoning agents are perfect for:
+- Complex logic problems
+- Multi-step calculations
+- Problems requiring careful analysis
+</Tip>
+
+---
+
+## Agentic RAG with Reasoning
+
+Combine knowledge search with extended reasoning.
+
+```python agentic_rag_reasoning.py
+from agno.agent import Agent
+from agno.knowledge.knowledge import Knowledge
+from agno.vectordb.chroma import ChromaDb
+from agno.knowledge.embedder.openai import OpenAIEmbedder
+from agno.models.openai import OpenAIResponses
+
+# Setup knowledge base
+knowledge = Knowledge(
+    name="Technical Docs",
+    vector_db=ChromaDb(
+        name="tech_docs",
+        collection="docs",
+        path="tmp/chromadb",
+        persistent_client=True,
+        embedder=OpenAIEmbedder(id="text-embedding-3-small"),
+    ),
+    max_results=5,
+)
+
+# Load documents
+knowledge.insert(
+    name="API Documentation",
+    url="https://example.com/api-docs.pdf"
+)
+
+# Create agent with reasoning + RAG
+rag_reasoning_agent = Agent(
+    name="RAG Reasoning Agent",
+    model=OpenAIResponses(id="gpt-5.2"),
+    knowledge=knowledge,
+    search_knowledge=True,
+    reasoning=True,
+    reasoning_min_steps=2,
+    reasoning_max_steps=4,
+    instructions="""
+    Search the knowledge base first, then reason through the answer.
+    Combine multiple sources and think step-by-step.
+    """,
+    markdown=True,
+)
+
+if __name__ == "__main__":
+    rag_reasoning_agent.print_response(
+        "How do I implement authentication in the API?",
+        stream=True,
+        show_full_reasoning=True,
+    )
+```
+
+---
+
+## Session State Management
+
+Manage complex stateful interactions.
+
+```python session_state.py
+from agno.agent import Agent
+from agno.run import RunContext
+from agno.db.sqlite import SqliteDb
+
+def add_item(run_context: RunContext, item: str) -> str:
+    """Add item to shopping cart."""
+    cart = run_context.session_state.get("cart", [])
+    cart.append(item)
+    run_context.session_state["cart"] = cart
+    return f"Added {item}. Cart now has {len(cart)} items."
+
+def get_cart(run_context: RunContext) -> str:
+    """Get current cart contents."""
+    cart = run_context.session_state.get("cart", [])
+    if not cart:
+        return "Cart is empty"
+    return f"Cart contains: {', '.join(cart)}"
+
+def clear_cart(run_context: RunContext) -> str:
+    """Clear the cart."""
+    run_context.session_state["cart"] = []
+    return "Cart cleared"
+
+agent = Agent(
+    name="Shopping Assistant",
+    model=OpenAIResponses(id="gpt-5.2"),
+    tools=[add_item, get_cart, clear_cart],
+    session_state={"cart": []},
+    add_session_state_to_context=True,
+    db=SqliteDb(db_file="tmp/agents.db"),
+    instructions="""
+    You are a shopping assistant that helps users manage their cart.
+    Current cart: {cart}
+    """,
+)
+
+if __name__ == "__main__":
+    agent.print_response("Add milk and eggs to my cart", stream=True)
+    agent.print_response("What's in my cart?", stream=True)
+```
+
+<Note>
+**State vs Storage vs Memory:**
+- **State**: Structured data the agent manages (carts, counters, flags)
+- **Storage**: Conversation history
+- **Memory**: User preferences
+</Note>
+
+---
+
+## Approval-Based Actions
+
+Require approval for specific actions.
+
+```python approval_basic.py
+from agno.agent import Agent
+from agno.tools import tool
+from rich.prompt import Prompt
+
+@tool(requires_confirmation=True)
+def send_email(to: str, subject: str, body: str) -> str:
+    """Send an email - requires user approval."""
+    # Email sending logic here
+    return f"Email sent to {to}"
+
+@tool(requires_confirmation=True)
+def delete_file(path: str) -> str:
+    """Delete a file - requires user approval."""
+    # File deletion logic here
+    return f"Deleted {path}"
+
+agent = Agent(
+    name="Assistant with Approvals",
+    model=OpenAIResponses(id="gpt-5.2"),
+    tools=[send_email, delete_file],
+)
+
+if __name__ == "__main__":
+    run_response = agent.run(
+        "Send an email to john@example.com with subject 'Meeting' and body 'See you at 3pm'"
+    )
+    
+    # Handle approvals
+    if run_response.active_requirements:
+        for req in run_response.active_requirements:
+            if req.needs_confirmation:
+                print(f"Approval needed: {req.tool_execution.tool_name}")
+                print(f"Args: {req.tool_execution.tool_args}")
+                
+                choice = Prompt.ask("Approve?", choices=["y", "n"], default="y")
+                
+                if choice == "y":
+                    req.confirm()
+                else:
+                    req.reject()
+        
+        # Continue with decisions
+        run_response = agent.continue_run(
+            run_id=run_response.run_id,
+            requirements=run_response.requirements,
+        )
+        
+        print(run_response.content)
+```
+
+---
+
+## Agent Events
+
+Monitor agent execution with event handlers.
+
+```python agent_events.py
+from agno.agent import Agent
+from agno.run.agent import RunEvent, RunInputEvent, RunOutputEvent
+from typing import AsyncIterator
+import asyncio
+
+agent = Agent(
+    name="Event Agent",
+    model=OpenAIResponses(id="gpt-5.2"),
+    tools=[get_weather],
+)
+
+async def stream_events():
+    events: AsyncIterator[RunOutputEvent] = agent.arun(
+        "What's the weather in Tokyo?",
+        stream=True,
+        stream_events=True,
+    )
+    
+    async for event in events:
+        if event.event == RunEvent.run_started.value:
+            print(f"Run started: {event.run_id}")
+        
+        elif event.event == RunEvent.tool_call_started.value:
+            print(f"Tool called: {event.tool_name}")
+        
+        elif event.event == RunEvent.tool_call_completed.value:
+            print(f"Tool completed: {event.tool_name}")
+        
+        elif event.event == RunEvent.run_completed.value:
+            print(f"Run completed: {event.content}")
+
+if __name__ == "__main__":
+    asyncio.run(stream_events())
+```
+
+<Tip>
+**Use events for:**
+- Logging and monitoring
+- Progress tracking in UIs
+- Custom integrations
+- Debugging agent behavior
+</Tip>
+
+---
+
+## Agent with Skills
+
+Compose reusable agent skills.
+
+```python agent_skills.py
+from agno.agent import Agent
+from agno.skills import Skill
+from agno.tools.calculator import CalculatorTools
+from agno.tools.websearch import WebSearchTools
+
+# Define reusable skills
+math_skill = Skill(
+    name="Math",
+    instructions="You are excellent at mathematics and calculations.",
+    tools=[CalculatorTools()],
+)
+
+research_skill = Skill(
+    name="Research",
+    instructions="You can search the web for current information.",
+    tools=[WebSearchTools()],
+)
+
+# Compose agent with multiple skills
+agent = Agent(
+    name="Multi-Skilled Agent",
+    model=OpenAIResponses(id="gpt-5.2"),
+    skills=[math_skill, research_skill],
+    instructions="You are a helpful assistant with math and research capabilities.",
+)
+
+if __name__ == "__main__":
+    agent.print_response(
+        "Search for the current population of Tokyo, then calculate how many people that is per square kilometer if Tokyo is 2,194 km²",
+        stream=True,
+    )
+```
+
+---
+
+## Next Steps
+
+Explore more advanced patterns:
+
+- [Teams](/cookbook/teams) - Multi-agent coordination
+- [Workflows](/cookbook/workflows) - Complex orchestration
+- [Production](/cookbook/production) - Deploy with AgentOS
+
+<Note>
+For the complete collection of agent examples, see the [source code](https://github.com/agno-agi/agno/tree/main/cookbook/02_agents).
+</Note>

@@ -1,0 +1,176 @@
+---
+title: SQLiteDb
+description: SQLite database integration for Agno
+---
+
+The `SQLiteDb` class provides SQLite storage for agents, sessions, memories, and more. It's perfect for development, testing, and lightweight deployments.
+
+## Constructor
+
+```python
+from agno.db.sqlite import SQLiteDb
+
+db = SQLiteDb(db_file="agent.db")
+```
+
+## Parameters
+
+<ParamField path="db_file" type="str" default="tmp/agno.db">
+  Path to the SQLite database file.
+</ParamField>
+
+<ParamField path="create_tables" type="bool" default="True">
+  If True, automatically creates required tables.
+</ParamField>
+
+<ParamField path="session_table" type="str" default="agno_sessions">
+  Name of the sessions table.
+</ParamField>
+
+<ParamField path="memory_table" type="str" default="agno_memories">
+  Name of the memories table.
+</ParamField>
+
+<ParamField path="knowledge_table" type="str" default="agno_knowledge">
+  Name of the knowledge table.
+</ParamField>
+
+<ParamField path="metrics_table" type="str" default="agno_metrics">
+  Name of the metrics table.
+</ParamField>
+
+And other table names for eval, traces, components, etc.
+
+## Methods
+
+Inherits all methods from `BaseDb`.
+
+### close()
+
+Close database connections.
+
+```python
+db.close()
+```
+
+## Example Usage
+
+<CodeGroup>
+```python Basic Usage
+from agno import Agent
+from agno.db.sqlite import SQLiteDb
+
+db = SQLiteDb(db_file="my_agent.db")
+
+agent = Agent(
+    name="Assistant",
+    model="gpt-4o",
+    db=db,
+    add_history_to_context=True
+)
+
+# Conversations are automatically saved
+response = agent.run("Hello!", user_id="user_1")
+response = agent.run("What did I just say?", user_id="user_1")
+
+# Get session history
+session = agent.get_session()
+print(f"Session has {len(session.runs)} runs")
+```
+
+```python With Memory
+from agno import Agent
+from agno.db.sqlite import SQLiteDb
+from agno.memory import MemoryManager
+
+db = SQLiteDb(db_file="agent.db")
+
+agent = Agent(
+    model="gpt-4o",
+    db=db,
+    memory_manager=MemoryManager(db=db),
+    update_memory_on_run=True,
+    add_memories_to_context=True
+)
+
+# Agent remembers across sessions
+response = agent.run("My name is Alice", user_id="user_1")
+response = agent.run("What's my name?", user_id="user_1")
+```
+
+```python Save & Load Components
+from agno import Agent
+from agno.db.sqlite import SQLiteDb
+
+db = SQLiteDb(db_file="components.db")
+
+# Save agent configuration
+agent = Agent(name="helper", model="gpt-4o")
+version = agent.save(db=db, stage="published")
+
+# Load agent later
+loaded_agent = Agent.load(
+    id="helper",
+    db=db
+)
+```
+
+```python Query Sessions
+from agno.db.sqlite import SQLiteDb
+from agno.db.base import SessionType
+
+db = SQLiteDb(db_file="agent.db")
+
+# Get all sessions for a user
+sessions = db.get_sessions(
+    session_type=SessionType.AGENT,
+    user_id="user_1",
+    limit=10,
+    sort_by="updated_at",
+    sort_order="desc"
+)
+
+for session in sessions:
+    print(f"Session {session.session_id}: {len(session.runs)} runs")
+```
+</CodeGroup>
+
+## Configuration
+
+### Custom Database Location
+
+```python
+db = SQLiteDb(db_file="/path/to/database.db")
+```
+
+### Custom Table Names
+
+```python
+db = SQLiteDb(
+    db_file="agent.db",
+    session_table="my_sessions",
+    memory_table="my_memories"
+)
+```
+
+### In-Memory Database
+
+```python
+# For testing
+db = SQLiteDb(db_file=":memory:")
+```
+
+## Best Practices
+
+1. **Close connections**: Call `db.close()` when shutting down
+2. **Use for development**: SQLite is great for development and small deployments
+3. **PostgreSQL for production**: Use PostgreSQL for production workloads
+4. **Backup regularly**: SQLite is just a file - back it up regularly
+5. **One writer at a time**: SQLite doesn't handle concurrent writes well
+
+## Limitations
+
+- Limited concurrency (single writer)
+- Not suitable for high-traffic production deployments
+- No built-in replication
+- Use PostgreSQL for production environments

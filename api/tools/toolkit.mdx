@@ -1,0 +1,235 @@
+---
+title: Toolkit
+description: Base class for organizing related tools
+---
+
+The `Toolkit` class provides a way to group related tools together with shared configuration. It handles registration of sync and async tools, filtering, and connection management.
+
+## Constructor
+
+```python
+from agno.tools import Toolkit
+
+toolkit = Toolkit(
+    name="my_tools",
+    tools=[func1, func2],
+    instructions="Use these tools to..."
+)
+```
+
+## Core Parameters
+
+<ParamField path="name" type="str" default="toolkit">
+  Descriptive name for the toolkit.
+</ParamField>
+
+<ParamField path="tools" type="Sequence[Callable | Function]" default="[]">
+  List of tools (functions or Function objects from @tool decorator).
+</ParamField>
+
+<ParamField path="async_tools" type="Sequence[tuple[Callable, str]]" default="None">
+  List of (async_callable, tool_name) tuples for async variants.
+</ParamField>
+
+<ParamField path="instructions" type="str" default="None">
+  Instructions for using the toolkit.
+</ParamField>
+
+<ParamField path="add_instructions" type="bool" default="False">
+  Whether to add instructions to the agent's system message.
+</ParamField>
+
+## Tool Filtering
+
+<ParamField path="include_tools" type="List[str]" default="None">
+  List of tool names to include from the toolkit.
+</ParamField>
+
+<ParamField path="exclude_tools" type="List[str]" default="None">
+  List of tool names to exclude from the toolkit.
+</ParamField>
+
+## HITL Configuration
+
+<ParamField path="requires_confirmation_tools" type="List[str]" default="None">
+  Tools that require user confirmation before execution.
+</ParamField>
+
+<ParamField path="external_execution_required_tools" type="List[str]" default="None">
+  Tools that will be executed outside the agent loop.
+</ParamField>
+
+<ParamField path="stop_after_tool_call_tools" type="List[str]" default="None">
+  Tools that stop the agent after execution.
+</ParamField>
+
+<ParamField path="show_result_tools" type="List[str]" default="None">
+  Tools whose results should be shown to the user.
+</ParamField>
+
+## Caching
+
+<ParamField path="cache_results" type="bool" default="False">
+  Enable in-memory caching of function results.
+</ParamField>
+
+<ParamField path="cache_ttl" type="int" default="3600">
+  Time-to-live for cached results in seconds.
+</ParamField>
+
+<ParamField path="cache_dir" type="str" default="None">
+  Directory to store cache files.
+</ParamField>
+
+<ParamField path="auto_register" type="bool" default="True">
+  Whether to automatically register all methods in the class.
+</ParamField>
+
+## Methods
+
+### register()
+
+Register a function with the toolkit.
+
+```python
+toolkit.register(my_function)
+```
+
+### get_functions()
+
+Get sync functions dict.
+
+```python
+functions = toolkit.get_functions()
+```
+
+### get_async_functions()
+
+Get functions optimized for async execution.
+
+```python
+async_functions = toolkit.get_async_functions()
+```
+
+### connect()
+
+Establish any required connections (override in subclasses).
+
+```python
+toolkit.connect()
+```
+
+### close()
+
+Close any open connections (override in subclasses).
+
+```python
+toolkit.close()
+```
+
+## Creating Custom Toolkits
+
+```python
+from agno.tools import Toolkit
+
+class WeatherToolkit(Toolkit):
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        
+        super().__init__(
+            name="weather",
+            tools=[self.get_weather, self.get_forecast],
+            instructions="Use these tools to get weather information"
+        )
+    
+    def get_weather(self, city: str) -> str:
+        """Get current weather for a city."""
+        # Implementation
+        return f"Weather in {city}: Sunny"
+    
+    def get_forecast(self, city: str, days: int = 5) -> str:
+        """Get weather forecast for a city."""
+        # Implementation
+        return f"Forecast for {city}: ..."
+```
+
+## Example Usage
+
+<CodeGroup>
+```python Basic Toolkit
+from agno import Agent
+from agno.tools import Toolkit
+
+def search_web(query: str) -> str:
+    """Search the web for information."""
+    return f"Results for {query}"
+
+def read_file(path: str) -> str:
+    """Read a file from disk."""
+    with open(path) as f:
+        return f.read()
+
+toolkit = Toolkit(
+    name="utilities",
+    tools=[search_web, read_file]
+)
+
+agent = Agent(model="gpt-4o", tools=[toolkit])
+```
+
+```python With Tool Filtering
+toolkit = Toolkit(
+    name="utilities",
+    tools=[search_web, read_file, write_file],
+    include_tools=["search_web", "read_file"]
+)
+```
+
+```python With HITL
+toolkit = Toolkit(
+    name="admin",
+    tools=[delete_user, modify_permissions],
+    requires_confirmation_tools=["delete_user"],
+    show_result_tools=["modify_permissions"]
+)
+```
+
+```python With Caching
+toolkit = Toolkit(
+    name="api",
+    tools=[fetch_data, process_data],
+    cache_results=True,
+    cache_ttl=1800  # 30 minutes
+)
+```
+
+```python Async Tools
+class AsyncToolkit(Toolkit):
+    def __init__(self):
+        super().__init__(
+            name="async_tools",
+            tools=[self.sync_tool],
+            async_tools=[
+                (self.async_tool, "async_tool")
+            ]
+        )
+    
+    def sync_tool(self, text: str) -> str:
+        return text.upper()
+    
+    async def async_tool(self, text: str) -> str:
+        await asyncio.sleep(0.1)
+        return text.lower()
+```
+</CodeGroup>
+
+## Built-in Toolkits
+
+Agno provides several pre-built toolkits:
+
+- **DuckDuckGoToolkit**: Web search capabilities
+- **FileSystemToolkit**: File operations
+- **GitHubToolkit**: GitHub API integration
+- **SlackToolkit**: Slack messaging
+- **EmailToolkit**: Email operations
+- **DatabaseToolkit**: Database queries

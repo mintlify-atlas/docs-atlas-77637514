@@ -1,0 +1,264 @@
+---
+title: Self-Improvement
+description: Enable agents to learn from feedback and improve their own instructions
+---
+
+Self-improvement allows agents to analyze feedback patterns and propose updates to their own system instructions, creating a continuous improvement loop.
+
+<Note>
+Self-improvement is currently in Phase 3 development. The architecture is designed but not yet fully implemented.
+</Note>
+
+## How It Works
+
+Self-improvement builds on the learning system's feedback and decision logging:
+
+<Steps>
+  <Step title="Collect Feedback">
+    Track user feedback signals:
+    - Thumbs up/down on responses
+    - Regeneration requests
+    - Explicit corrections
+    - Behavioral signals (task completion, user satisfaction)
+  </Step>
+
+  <Step title="Identify Patterns">
+    Analyze feedback to find improvement opportunities:
+    - Recurring failures or errors
+    - Consistent user corrections
+    - Successful interaction patterns
+  </Step>
+
+  <Step title="Propose Changes">
+    Generate instruction updates based on patterns:
+    - Add clarifications for common mistakes
+    - Update response style based on user preferences
+    - Refine tool usage guidelines
+  </Step>
+
+  <Step title="Human Review">
+    All changes require human approval (HITL mode):
+    ```python
+    from agno.learn import SelfImprovementConfig, LearningMode
+
+    config = SelfImprovementConfig(
+        mode=LearningMode.HITL,  # Human approval required
+    )
+    ```
+  </Step>
+</Steps>
+
+## Configuration (Planned)
+
+When available, self-improvement will be configured as part of LearningMachine:
+
+```python
+from agno.agent import Agent
+from agno.learn import (
+    LearningMachine,
+    SelfImprovementConfig,
+    FeedbackConfig,
+    LearningMode,
+)
+from agno.db.sqlite import SqliteDb
+
+agent = Agent(
+    name="Self-Improving Agent",
+    model=OpenAIResponses(id="gpt-5.2"),
+    db=SqliteDb(db_file="tmp/agent.db"),
+    learning=LearningMachine(
+        # Collect feedback signals
+        feedback=FeedbackConfig(
+            mode=LearningMode.ALWAYS,
+        ),
+        # Propose improvements with human approval
+        self_improvement=SelfImprovementConfig(
+            mode=LearningMode.HITL,
+        ),
+    ),
+)
+```
+
+## Feedback Types
+
+The system will track multiple feedback signals:
+
+### Explicit Feedback
+```python
+# User provides direct feedback
+response = agent.run("Write a product description")
+
+# Thumbs down - indicates poor response
+agent.record_feedback(
+    run_id=response.run_id,
+    rating="negative",
+    reason="Too verbose, needs to be more concise",
+)
+```
+
+### Implicit Feedback
+```python
+# Behavioral signals
+feedback_signals = {
+    "regenerated": True,        # User asked for regeneration
+    "edited_output": True,      # User edited the response
+    "task_completed": False,    # Task was not successful
+}
+```
+
+### Correction Feedback
+```python
+# User provides a correction
+agent.record_feedback(
+    run_id=response.run_id,
+    rating="negative",
+    correction="Product descriptions should focus on benefits, not features",
+)
+```
+
+## Improvement Workflow
+
+<CodeGroup>
+```python Collect Feedback
+# Track feedback over time
+for interaction in user_interactions:
+    response = agent.run(interaction.message)
+    
+    # Record feedback
+    agent.record_feedback(
+        run_id=response.run_id,
+        rating=interaction.user_rating,
+        reason=interaction.feedback_reason,
+    )
+```
+
+```python Analyze Patterns
+# System identifies patterns (automatic)
+# - 80% of negative feedback mentions "too verbose"
+# - Users frequently ask to "make it shorter"
+# - High regeneration rate on long responses
+
+pattern = {
+    "issue": "responses_too_verbose",
+    "frequency": 0.8,
+    "examples": [
+        "Too long, needs to be concise",
+        "Make it shorter",
+        "Too much detail",
+    ],
+}
+```
+
+```python Propose Improvement
+# Agent proposes instruction update
+proposal = {
+    "type": "instruction_update",
+    "section": "response_style",
+    "current": "Provide detailed, comprehensive responses.",
+    "proposed": "Provide concise, focused responses. Be brief unless the user asks for more detail.",
+    "reasoning": "80% of negative feedback indicates responses are too verbose. Users consistently request shorter answers.",
+    "supporting_evidence": [
+        "run_123: 'Too long'",
+        "run_456: 'Make it shorter'",
+        "run_789: 'Too much detail'",
+    ],
+}
+```
+
+```python Human Approval
+# Review and approve/reject proposal
+improvement_review = agent.get_pending_improvements()
+
+for proposal in improvement_review:
+    print(f"Proposed change: {proposal.proposed}")
+    print(f"Reasoning: {proposal.reasoning}")
+    
+    # Human decision
+    if approve_change:
+        agent.approve_improvement(proposal.id)
+        # Instructions are updated
+    else:
+        agent.reject_improvement(
+            proposal.id,
+            reason="Not applicable to all use cases",
+        )
+```
+</CodeGroup>
+
+## Safety Considerations
+
+<Warning>
+Self-improvement requires careful safeguards:
+</Warning>
+
+1. **Human-in-the-Loop**: All changes require human approval
+2. **Version Control**: Track all instruction versions
+3. **Rollback Capability**: Ability to revert changes
+4. **Scope Limits**: Prevent agents from removing safety guidelines
+5. **Audit Trail**: Complete log of all proposed and applied changes
+
+## Architecture Design
+
+The self-improvement configuration follows the same patterns as other learning stores:
+
+```python
+from dataclasses import dataclass
+from agno.learn.config import LearningMode
+
+@dataclass
+class SelfImprovementConfig:
+    """Configuration for Self-Improvement learning type.
+    
+    Self-Improvement proposes updates to agent instructions based
+    on feedback patterns and successful interactions.
+    
+    Scope: AGENT (fixed) - Stored and retrieved by agent_id.
+    
+    Note: Deferred to Phase 3.
+    """
+    
+    # Required fields
+    db: Optional[Union[BaseDb, AsyncBaseDb]] = None
+    model: Optional[Model] = None
+    
+    # Mode and extraction
+    mode: LearningMode = LearningMode.HITL  # Always requires human approval
+    schema: Optional[Type[Any]] = None
+    
+    # Prompt customization
+    instructions: Optional[str] = None
+```
+
+## Benefits
+
+<CardGroup cols={2}>
+  <Card title="Continuous Improvement" icon="arrows-rotate">
+    Agents improve over time based on real usage patterns
+  </Card>
+  <Card title="User-Driven" icon="users">
+    Changes reflect actual user needs and preferences
+  </Card>
+  <Card title="Safe Evolution" icon="shield-check">
+    Human oversight ensures changes are appropriate
+  </Card>
+  <Card title="Audit Trail" icon="list">
+    Complete history of all changes and their reasoning
+  </Card>
+</CardGroup>
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Learning Overview" icon="brain" href="/learning/overview">
+    Understand the full learning system
+  </Card>
+  <Card title="Decision Logging" icon="list-check" href="/learning/overview#decision-log">
+    Track agent decisions for analysis
+  </Card>
+  <Card title="Evaluations" icon="chart-line" href="/evals/overview">
+    Measure agent performance over time
+  </Card>
+  <Card title="Human Approval" icon="hand" href="/approval/human-in-the-loop">
+    Human-in-the-loop approval workflows
+  </Card>
+</CardGroup>

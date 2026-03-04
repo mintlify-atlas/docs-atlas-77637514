@@ -1,0 +1,329 @@
+---
+title: Agent
+description: The core Agent class for building AI agents
+---
+
+The `Agent` class is the foundation for building AI agents in Agno. It handles interactions with language models, manages tools, maintains conversation history, and provides features like memory, knowledge integration, and reasoning.
+
+## Constructor
+
+```python
+from agno import Agent
+
+agent = Agent(
+    model="gpt-4o",
+    name="my_agent",
+    instructions=["You are a helpful assistant"],
+    tools=[...],
+    db=db
+)
+```
+
+## Core Parameters
+
+<ParamField path="model" type="Model | str" default="None">
+  The language model to use for this agent. Can be a Model instance or model identifier string.
+</ParamField>
+
+<ParamField path="name" type="str" default="None">
+  A descriptive name for the agent.
+</ParamField>
+
+<ParamField path="id" type="str" default="None">
+  Unique identifier for the agent. Auto-generated if not provided.
+</ParamField>
+
+<ParamField path="description" type="str" default="None">
+  A description of the agent added to the system message.
+</ParamField>
+
+<ParamField path="instructions" type="str | List[str] | Callable" default="None">
+  Instructions that guide the agent's behavior. Can be a string, list of strings, or callable that returns instructions.
+</ParamField>
+
+<ParamField path="user_id" type="str" default="None">
+  Default user ID for this agent.
+</ParamField>
+
+## Session & State
+
+<ParamField path="session_id" type="str" default="None">
+  Default session ID (auto-generated if not provided).
+</ParamField>
+
+<ParamField path="session_state" type="Dict[str, Any]" default="None">
+  Session state stored in the database to persist across runs.
+</ParamField>
+
+<ParamField path="add_session_state_to_context" type="bool" default="False">
+  If True, adds the session_state to the agent's context.
+</ParamField>
+
+<ParamField path="enable_agentic_state" type="bool" default="False">
+  If True, gives the agent tools to update session_state dynamically.
+</ParamField>
+
+<ParamField path="overwrite_db_session_state" type="bool" default="False">
+  If True, overwrites stored session_state with the provided session_state.
+</ParamField>
+
+<ParamField path="cache_session" type="bool" default="False">
+  If True, caches the agent session in memory for faster access.
+</ParamField>
+
+## Database
+
+<ParamField path="db" type="BaseDb | AsyncBaseDb" default="None">
+  Database to use for storing agent sessions, memory, and history.
+</ParamField>
+
+## Memory
+
+<ParamField path="memory_manager" type="MemoryManager" default="None">
+  Memory manager for handling user memories.
+</ParamField>
+
+<ParamField path="enable_agentic_memory" type="bool" default="False">
+  Enables the agent to manage memories of the user.
+</ParamField>
+
+<ParamField path="update_memory_on_run" type="bool" default="False">
+  If True, the agent creates/updates user memories at the end of runs.
+</ParamField>
+
+<ParamField path="add_memories_to_context" type="bool" default="None">
+  If True, adds a reference to user memories in the context.
+</ParamField>
+
+## History
+
+<ParamField path="add_history_to_context" type="bool" default="False">
+  Adds messages from chat history to the context sent to the model.
+</ParamField>
+
+<ParamField path="num_history_runs" type="int" default="3">
+  Number of historical runs to include in the messages.
+</ParamField>
+
+<ParamField path="num_history_messages" type="int" default="None">
+  Number of historical messages to include in the context.
+</ParamField>
+
+<ParamField path="max_tool_calls_from_history" type="int" default="None">
+  Maximum number of tool calls to include from history (None = no limit).
+</ParamField>
+
+## Knowledge & RAG
+
+<ParamField path="knowledge" type="KnowledgeProtocol | Callable" default="None">
+  Knowledge base for the agent to retrieve information from.
+</ParamField>
+
+<ParamField path="knowledge_filters" type="Dict[str, Any] | List[FilterExpr]" default="None">
+  Filters to apply when searching the knowledge base.
+</ParamField>
+
+<ParamField path="add_knowledge_to_context" type="bool" default="False">
+  If True, adds knowledge references to the user prompt.
+</ParamField>
+
+<ParamField path="search_knowledge" type="bool" default="True">
+  Adds a tool that allows the agent to search the knowledge base.
+</ParamField>
+
+<ParamField path="knowledge_retriever" type="Callable" default="None">
+  Custom retrieval function. If provided, used instead of default search.
+</ParamField>
+
+## Tools
+
+<ParamField path="tools" type="List[Toolkit | Callable | Function | Dict] | Callable" default="None">
+  Tools available to the agent. Can be a list or callable factory that returns tools.
+</ParamField>
+
+<ParamField path="tool_call_limit" type="int" default="None">
+  Maximum number of tool calls allowed.
+</ParamField>
+
+<ParamField path="tool_choice" type="str | Dict[str, Any]" default="None">
+  Controls which tool is called: "none", "auto", or specific tool specification.
+</ParamField>
+
+<ParamField path="tool_hooks" type="List[Callable]" default="None">
+  Functions called around tool calls as middleware.
+</ParamField>
+
+## Hooks
+
+<ParamField path="pre_hooks" type="List[Callable | BaseGuardrail | BaseEval]" default="None">
+  Functions called after session load, before processing starts.
+</ParamField>
+
+<ParamField path="post_hooks" type="List[Callable | BaseGuardrail | BaseEval]" default="None">
+  Functions called after output generation, before response return.
+</ParamField>
+
+## Reasoning
+
+<ParamField path="reasoning" type="bool" default="False">
+  Enables step-by-step reasoning mode.
+</ParamField>
+
+<ParamField path="reasoning_model" type="Model" default="None">
+  Separate model to use for reasoning steps.
+</ParamField>
+
+<ParamField path="reasoning_min_steps" type="int" default="1">
+  Minimum number of reasoning steps.
+</ParamField>
+
+<ParamField path="reasoning_max_steps" type="int" default="10">
+  Maximum number of reasoning steps.
+</ParamField>
+
+## Response Configuration
+
+<ParamField path="output_schema" type="Type[BaseModel] | Dict[str, Any]" default="None">
+  Pydantic model or JSON schema for structured output.
+</ParamField>
+
+<ParamField path="structured_outputs" type="bool" default="None">
+  Use model-enforced structured outputs if supported.
+</ParamField>
+
+<ParamField path="markdown" type="bool" default="False">
+  If True, instructs the agent to format output using markdown.
+</ParamField>
+
+<ParamField path="stream" type="bool" default="None">
+  Stream the response from the agent.
+</ParamField>
+
+<ParamField path="stream_events" type="bool" default="None">
+  Stream intermediate steps from the agent.
+</ParamField>
+
+## Methods
+
+### run()
+
+Run the agent with a message.
+
+```python
+response = agent.run("What's the weather like?")
+print(response.content)
+```
+
+**Parameters:**
+
+- `input` (str | List | Dict | Message | BaseModel | List[Message]): The input message(s)
+- `stream` (bool): Whether to stream the response
+- `session_id` (str): Optional session ID
+- `user_id` (str): Optional user ID
+- `session_state` (Dict[str, Any]): Optional session state
+- `images` (Sequence[Image]): Optional images to include
+- `audio` (Sequence[Audio]): Optional audio files
+- `videos` (Sequence[Video]): Optional videos
+- `files` (Sequence[File]): Optional files
+
+**Returns:** `RunOutput` or Iterator of `RunOutputEvent` if streaming
+
+### arun()
+
+Async version of `run()`.
+
+```python
+response = await agent.arun("What's the weather like?")
+```
+
+### print_response()
+
+Run the agent and print the response to console.
+
+```python
+agent.print_response("Tell me a joke")
+```
+
+### cli_app()
+
+Start an interactive CLI chat with the agent.
+
+```python
+agent.cli_app()
+```
+
+### get_session()
+
+Retrieve a session from the database.
+
+```python
+session = agent.get_session(session_id="abc123")
+```
+
+### save()
+
+Save the agent configuration to the database.
+
+```python
+version = agent.save(db=db, stage="published")
+```
+
+### load()
+
+Load an agent from the database.
+
+```python
+agent = Agent.load(id="my_agent", db=db)
+```
+
+## Example Usage
+
+<CodeGroup>
+```python Basic Agent
+from agno import Agent
+from agno.models.openai import OpenAIChat
+
+agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    name="Assistant",
+    instructions="You are a helpful assistant.",
+)
+
+response = agent.run("What is 2+2?")
+print(response.content)
+```
+
+```python Agent with Tools
+from agno import Agent
+from agno.tools import DuckDuckGoToolkit
+
+def get_weather(city: str) -> str:
+    """Get the weather for a city."""
+    return f"The weather in {city} is sunny."
+
+agent = Agent(
+    model="gpt-4o",
+    tools=[get_weather, DuckDuckGoToolkit()],
+)
+
+response = agent.run("What's the weather in Tokyo?")
+```
+
+```python Agent with Memory
+from agno import Agent
+from agno.db.sqlite import SQLiteDb
+from agno.memory import MemoryManager
+
+db = SQLiteDb(db_file="agent.db")
+
+agent = Agent(
+    model="gpt-4o",
+    db=db,
+    memory_manager=MemoryManager(db=db),
+    update_memory_on_run=True,
+    add_memories_to_context=True,
+)
+
+response = agent.run("My name is Alice", user_id="user_1")
+```
+</CodeGroup>

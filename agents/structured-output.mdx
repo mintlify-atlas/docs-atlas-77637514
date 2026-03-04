@@ -1,0 +1,123 @@
+---
+title: "Structured output"
+description: "Get typed, predictable responses from agents"
+---
+
+Structured output ensures your agent returns data in a specific format defined by a Pydantic model. This is essential for building reliable systems where you need predictable data shapes.
+
+## Why structured output?
+
+- **Type safety**: Get typed objects, not strings to parse
+- **Validation**: Pydantic validates all fields automatically
+- **Predictability**: Always get the same data structure
+- **Integration**: Easy to store in databases or pass to other systems
+
+## Basic example
+
+```python
+from agno.agent import Agent
+from pydantic import BaseModel, Field
+
+class MovieReview(BaseModel):
+    title: str = Field(..., description="Movie title")
+    rating: float = Field(..., ge=0, le=10, description="Rating out of 10")
+    summary: str = Field(..., description="One-line summary")
+    pros: list[str] = Field(..., description="What was good")
+    cons: list[str] = Field(..., description="What was bad")
+
+agent = Agent(
+    output_schema=MovieReview
+)
+
+response = agent.run("Review the movie Inception")
+review: MovieReview = response.content
+
+print(f"Rating: {review.rating}/10")
+print(f"Summary: {review.summary}")
+```
+
+## Real-world example: Stock analysis
+
+From the [quickstart cookbook](/cookbook/quickstart):
+
+```python
+from typing import List, Optional
+from pydantic import BaseModel, Field
+from agno.tools.yfinance import YFinanceTools
+
+class StockAnalysis(BaseModel):
+    ticker: str = Field(..., description="Stock ticker symbol")
+    company_name: str = Field(..., description="Full company name")
+    current_price: float = Field(..., description="Current stock price")
+    market_cap: str = Field(..., description="Market cap")
+    pe_ratio: Optional[float] = Field(None, description="P/E ratio")
+    summary: str = Field(..., description="One-line summary")
+    key_drivers: List[str] = Field(..., description="Growth drivers")
+    key_risks: List[str] = Field(..., description="Key risks")
+    recommendation: str = Field(
+        ..., 
+        description="Strong Buy, Buy, Hold, Sell, or Strong Sell"
+    )
+
+agent = Agent(
+    tools=[YFinanceTools()],
+    output_schema=StockAnalysis
+)
+
+analysis = agent.run("Analyze NVIDIA").content
+print(f"{analysis.ticker}: {analysis.recommendation}")
+print(f"Price: ${analysis.current_price}")
+```
+
+## Nested schemas
+
+```python
+class Address(BaseModel):
+    street: str
+    city: str
+    country: str
+
+class Company(BaseModel):
+    name: str
+    headquarters: Address
+    employees: int
+    revenue: float
+
+agent = Agent(output_schema=Company)
+```
+
+## Optional fields
+
+```python
+from typing import Optional
+
+class Product(BaseModel):
+    name: str
+    price: float
+    discount: Optional[float] = None  # May not always be available
+    description: Optional[str] = None
+```
+
+## Using the output
+
+```python
+# Store in database
+response = agent.run("Analyze Tesla")
+db.insert("analyses", response.content.model_dump())
+
+# Build UI
+analysis = agent.run("Analyze Apple").content
+render_stock_card(
+    ticker=analysis.ticker,
+    price=analysis.current_price,
+    recommendation=analysis.recommendation
+)
+
+# Compare multiple
+nvda = agent.run("Analyze NVDA").content
+amd = agent.run("Analyze AMD").content
+if nvda.pe_ratio < amd.pe_ratio:
+    print(f"{nvda.ticker} is cheaper by P/E")
+```
+
+See [cookbook examples](/cookbook/agents) for more patterns.

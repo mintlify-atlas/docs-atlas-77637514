@@ -1,0 +1,555 @@
+---
+title: Human-in-the-Loop (HITL)
+description: Add human approval workflows for sensitive operations
+---
+
+Human-in-the-Loop (HITL) enables agents to pause execution and request human approval before proceeding with sensitive operations. This ensures oversight for critical decisions while maintaining automation for routine tasks.
+
+## Overview
+
+HITL workflows allow you to:
+
+- Require approval before executing sensitive tools
+- Request user input during agent execution
+- Enable external validation before proceeding
+- Create audit trails for compliance
+
+## Quick Start
+
+Mark tools as requiring approval:
+
+```python
+from agno.agent import Agent
+from agno.approval import approval
+from agno.tools import tool
+from agno.db.sqlite import SqliteDb
+from agno.models.openai import OpenAIResponses
+import httpx
+import json
+
+@approval  # Requires approval before execution
+@tool(requires_confirmation=True)
+def get_top_hackernews_stories(num_stories: int) -> str:
+    """Fetch top stories from Hacker News.
+    
+    Args:
+        num_stories: Number of stories to retrieve
+    
+    Returns:
+        JSON string of story details
+    """
+    response = httpx.get("https://hacker-news.firebaseio.com/v0/topstories.json")
+    story_ids = response.json()
+    stories = []
+    for story_id in story_ids[:num_stories]:
+        story = httpx.get(
+            f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
+        ).json()
+        stories.append(story)
+    return json.dumps(stories)
+
+# Create agent with database (required for approval tracking)
+db = SqliteDb(
+    db_file="tmp/approvals.db",
+    session_table="agent_sessions",
+    approvals_table="approvals",
+)
+
+agent = Agent(
+    model=OpenAIResponses(id="gpt-5-mini"),
+    tools=[get_top_hackernews_stories],
+    db=db,
+)
+
+# Agent will pause and wait for approval
+response = agent.run("Fetch the top 2 hackernews stories")
+
+if response.is_paused:
+    print(f"Status: {response.status}")  # "paused"
+    
+    # Review and approve requirements
+    for req in response.active_requirements:
+        if req.needs_confirmation:
+            print(f"Tool: {req.tool_execution.tool_name}")
+            print(f"Args: {req.tool_execution.arguments}")
+            req.confirm()  # Approve execution
+    
+    # Continue execution
+    response = agent.continue_run(
+        run_id=response.run_id,
+        requirements=response.requirements,
+    )
+    print(response.content)
+```
+
+## Approval Types
+
+The `@approval` decorator supports two modes:
+
+<Tabs>
+  <Tab title="Required">
+    Blocking approval - execution cannot continue until approved:
+    
+    ```python
+    from agno.approval import approval, ApprovalType
+    
+    @approval  # Default: required
+    @tool(requires_confirmation=True)
+    def delete_user(user_id: str) -> str:
+        """Delete a user account."""
+        # This requires approval before execution
+        return delete_from_database(user_id)
+    
+    # Or explicitly
+    @approval(type=ApprovalType.required)
+    @tool(requires_confirmation=True)
+    def transfer_funds(amount: float, to_account: str) -> str:
+        """Transfer funds to another account."""
+        return process_transfer(amount, to_account)
+    ```
+  </Tab>
+  <Tab title="Audit">
+    Non-blocking audit trail - creates record after execution:
+    
+    ```python
+    from agno.approval import approval, ApprovalType
+    
+    @approval(type=ApprovalType.audit)
+    @tool(requires_confirmation=True)  # Still needs HITL flag
+    def update_pricing(product_id: str, new_price: float) -> str:
+        """Update product pricing."""
+        # Executes immediately, creates audit record
+        return update_product(product_id, new_price)
+    ```
+    
+    <Warning>
+    Audit mode requires at least one HITL flag (`requires_confirmation`, `requires_user_input`, or `external_execution`)
+    </Warning>
+  </Tab>
+</Tabs>
+
+## HITL Flags
+
+Three flags control how tools interact with humans:
+
+### requires_confirmation
+
+Agent must wait for explicit approval:
+
+```python
+@tool(requires_confirmation=True)
+def send_email(to: str, subject: str, body: str) -> str:
+    """Send an email."""
+    return send_mail(to, subject, body)
+
+# Usage
+response = agent.run("Send an email to team@company.com")
+
+if response.is_paused:
+    for req in response.active_requirements:
+        if req.needs_confirmation:
+            # Show preview to user
+            print(f"Send email to {req.tool_execution.arguments['to']}?")
+            print(f"Subject: {req.tool_execution.arguments['subject']}")
+            
+            # User approves
+            req.confirm()
+    
+    # Continue
+    response = agent.continue_run(
+        run_id=response.run_id,
+        requirements=response.requirements,
+    )
+```
+
+### requires_user_input
+
+Agent needs additional information from the user:
+
+```python
+@tool(requires_user_input=True)
+def book_appointment(date: str, time: str) -> str:
+    """Book an appointment."""
+    return create_booking(date, time)
+
+# Usage
+response = agent.run("Book an appointment for tomorrow")
+
+if response.is_paused:
+    for req in response.active_requirements:
+        if req.needs_user_input:
+            # Request input from user
+            user_preference = input("Preferred time slot? ")
+            req.provide_input(user_preference)
+    
+    response = agent.continue_run(
+        run_id=response.run_id,
+        requirements=response.requirements,
+    )
+```
+
+### external_execution
+
+Tool is executed externally, agent waits for result:
+
+```python
+@tool(external_execution=True)
+def deploy_to_production(service: str) -> str:
+    """Deploy service to production.
+    
+    This tool is executed externally via CI/CD pipeline.
+    """
+    # Agent doesn't execute this
+    # Returns placeholder
+    return "Deployment initiated externally"
+
+# Usage
+response = agent.run("Deploy the API service")
+
+if response.is_paused:
+    for req in response.active_requirements:
+        if req.needs_external_execution:
+            # Trigger external system
+            trigger_deployment_pipeline(req.tool_execution.arguments)
+            
+            # Wait for result
+            result = wait_for_deployment()
+            
+            # Provide result to agent
+            req.provide_result(result)
+    
+    response = agent.continue_run(
+        run_id=response.run_id,
+        requirements=response.requirements,
+    )
+```
+
+## Approval Database
+
+Approvals are tracked in the database for audit and compliance:
+
+```python
+from agno.db.sqlite import SqliteDb
+
+db = SqliteDb(
+    db_file="tmp/approvals.db",
+    approvals_table="approvals",  # Table name for approvals
+)
+
+# Create agent
+agent = Agent(
+    model=OpenAIResponses(id="gpt-5-mini"),
+    tools=[sensitive_tool],
+    db=db,
+)
+
+# After run completes, check approval records
+approvals_list, total = db.get_approvals(status="pending")
+for approval_record in approvals_list:
+    print(f"Approval ID: {approval_record['id']}")
+    print(f"Run ID: {approval_record['run_id']}")
+    print(f"Status: {approval_record['status']}")
+    print(f"Context: {approval_record['context']}")
+
+# Update approval status
+db.update_approval(
+    approval_record['id'],
+    expected_status="pending",
+    status="approved",
+    resolved_by="user_123",
+    resolved_at=int(time.time()),
+)
+
+# Query approvals
+pending_count = db.get_pending_approval_count()
+approved, _ = db.get_approvals(status="approved")
+rejected, _ = db.get_approvals(status="rejected")
+```
+
+## Workflow Patterns
+
+### Sequential Approvals
+
+Multiple approvals in sequence:
+
+```python
+@approval
+@tool(requires_confirmation=True)
+def step_1_create_draft(content: str) -> str:
+    """Create draft document."""
+    return create_draft(content)
+
+@approval
+@tool(requires_confirmation=True)
+def step_2_publish(draft_id: str) -> str:
+    """Publish approved draft."""
+    return publish_draft(draft_id)
+
+agent = Agent(
+    model=OpenAIResponses(id="gpt-5-mini"),
+    tools=[step_1_create_draft, step_2_publish],
+    db=db,
+)
+
+response = agent.run("Create and publish a blog post about AI")
+
+# First approval
+if response.is_paused:
+    for req in response.active_requirements:
+        req.confirm()  # Approve draft creation
+    response = agent.continue_run(response.run_id, response.requirements)
+
+# Second approval
+if response.is_paused:
+    for req in response.active_requirements:
+        req.confirm()  # Approve publishing
+    response = agent.continue_run(response.run_id, response.requirements)
+```
+
+### Conditional Approval
+
+Require approval only for certain conditions:
+
+```python
+@tool(requires_confirmation=True)
+def transfer_money(amount: float, to_account: str) -> str:
+    """Transfer money between accounts."""
+    # Large transfers auto-flagged by requires_confirmation
+    return process_transfer(amount, to_account)
+
+agent = Agent(
+    model=OpenAIResponses(id="gpt-5-mini"),
+    tools=[transfer_money],
+    instructions="""
+    You can transfer money between accounts.
+    For transfers over $1000, you must get confirmation.
+    For smaller amounts, proceed directly.
+    """,
+    db=db,
+)
+
+response = agent.run("Transfer $50 to savings")
+# May not pause for small amount
+
+response = agent.run("Transfer $5000 to savings")
+# Will pause for large amount
+if response.is_paused:
+    for req in response.active_requirements:
+        if req.needs_confirmation:
+            amount = req.tool_execution.arguments['amount']
+            if amount > 1000:
+                print(f"Approve transfer of ${amount}?")
+                req.confirm()
+    response = agent.continue_run(response.run_id, response.requirements)
+```
+
+### Batch Approval
+
+Approve multiple operations at once:
+
+```python
+response = agent.run("Process all pending orders")
+
+if response.is_paused:
+    # Collect all pending approvals
+    confirmations = []
+    user_inputs = []
+    
+    for req in response.active_requirements:
+        if req.needs_confirmation:
+            confirmations.append(req)
+        elif req.needs_user_input:
+            user_inputs.append(req)
+    
+    # Show summary to user
+    print(f"Pending approvals: {len(confirmations)}")
+    for req in confirmations:
+        print(f"  - {req.tool_execution.tool_name}")
+    
+    # Batch approve
+    user_approves = input("Approve all? (y/n): ")
+    if user_approves.lower() == 'y':
+        for req in confirmations:
+            req.confirm()
+        
+        response = agent.continue_run(response.run_id, response.requirements)
+```
+
+## Async Approval
+
+Handle approvals asynchronously:
+
+```python
+import asyncio
+
+@approval
+@tool(requires_confirmation=True)
+async def async_operation(data: str) -> str:
+    """Perform async operation."""
+    return await process_async(data)
+
+agent = Agent(
+    model=OpenAIResponses(id="gpt-5-mini"),
+    tools=[async_operation],
+    db=db,
+)
+
+async def run_with_approval():
+    response = await agent.arun("Process this data")
+    
+    if response.is_paused:
+        for req in response.active_requirements:
+            if req.needs_confirmation:
+                req.confirm()
+        
+        response = await agent.acontinue_run(
+            run_id=response.run_id,
+            requirements=response.requirements,
+        )
+    
+    return response
+
+# Run async
+result = asyncio.run(run_with_approval())
+```
+
+## Team Approvals
+
+Approvals work with teams:
+
+```python
+from agno.team import Team
+
+@approval
+@tool(requires_confirmation=True)
+def execute_trade(symbol: str, quantity: int) -> str:
+    """Execute a stock trade."""
+    return trade_stock(symbol, quantity)
+
+research_agent = Agent(
+    name="Researcher",
+    role="Research stocks",
+    tools=[search_market_data],
+)
+
+trader_agent = Agent(
+    name="Trader",
+    role="Execute trades",
+    tools=[execute_trade],  # Requires approval
+)
+
+team = Team(
+    agents=[research_agent, trader_agent],
+    db=db,
+)
+
+response = team.run("Buy 100 shares of AAPL")
+
+if response.is_paused:
+    # Approve trade
+    for req in response.active_requirements:
+        if req.needs_confirmation:
+            print(f"Approve trade: {req.tool_execution.arguments}")
+            req.confirm()
+    
+    response = team.continue_run(response.run_id, response.requirements)
+```
+
+## Error Handling
+
+Handle approval rejections:
+
+```python
+response = agent.run("Delete all old logs")
+
+if response.is_paused:
+    for req in response.active_requirements:
+        if req.needs_confirmation:
+            user_decision = input("Approve? (y/n): ")
+            
+            if user_decision.lower() == 'y':
+                req.confirm()
+            else:
+                # Reject the requirement
+                req.reject(reason="User declined")
+    
+    response = agent.continue_run(response.run_id, response.requirements)
+    
+    # Agent will handle rejection and provide alternative
+    print(response.content)
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Database" icon="database">
+    Always use a database to track approvals for audit trails
+  </Card>
+  <Card title="Clear Context" icon="message">
+    Provide clear information about what's being approved
+  </Card>
+  <Card title="Timeout Handling" icon="clock">
+    Implement timeouts for pending approvals
+  </Card>
+  <Card title="Rejection Paths" icon="xmark">
+    Handle rejections gracefully with alternative actions
+  </Card>
+</CardGroup>
+
+## Compliance and Auditing
+
+HITL provides compliance benefits:
+
+```python
+# Query approval history
+def audit_approvals(start_date: str, end_date: str):
+    approvals, total = db.get_approvals(
+        filters={
+            "created_at_gte": start_date,
+            "created_at_lte": end_date,
+        }
+    )
+    
+    for approval in approvals:
+        print(f"Tool: {approval['context']['tool_name']}")
+        print(f"User: {approval['resolved_by']}")
+        print(f"Status: {approval['status']}")
+        print(f"Time: {approval['resolved_at']}")
+        print(f"Arguments: {approval['context']['arguments']}")
+        print("-" * 50)
+
+# Generate compliance report
+def generate_compliance_report(month: str):
+    approved, _ = db.get_approvals(
+        status="approved",
+        filters={"month": month},
+    )
+    rejected, _ = db.get_approvals(
+        status="rejected",
+        filters={"month": month},
+    )
+    
+    return {
+        "month": month,
+        "total_approvals": len(approved),
+        "total_rejections": len(rejected),
+        "approval_rate": len(approved) / (len(approved) + len(rejected)),
+    }
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Guardrails" icon="shield" href="/guardrails/overview">
+    Add input validation and safety checks
+  </Card>
+  <Card title="Learning" icon="brain" href="/learning/overview">
+    Learn from approval patterns
+  </Card>
+  <Card title="Evaluations" icon="chart-line" href="/evals/overview">
+    Test approval workflows
+  </Card>
+  <Card title="Tracing" icon="route" href="/tracing/overview">
+    Monitor approval performance
+  </Card>
+</CardGroup>

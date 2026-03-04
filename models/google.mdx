@@ -1,0 +1,33 @@
+---
+title: "Google"
+description: "Use Gemini models with Agno"
+---
+
+## Setup
+
+```bash
+pip install agno[google]
+export GOOGLE_API_KEY="your-api-key"
+```
+
+## Usage
+
+```python
+from agno.agent import Agent
+from agno.models.google import Gemini
+
+agent = Agent(
+    model=Gemini(
+        id="gemini-3-flash-preview",
+        temperature=0.7
+    )
+)
+```
+
+## Available models
+
+- `gemini-3-flash-preview` - Fast and affordable
+- `gemini-3-pro` - Most capable
+- `gemini-2.0-flash` - Previous generation
+
+See [Google AI documentation](https://ai.google.dev) for details.

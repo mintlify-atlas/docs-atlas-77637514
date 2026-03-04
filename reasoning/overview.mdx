@@ -1,0 +1,291 @@
+---
+title: Reasoning Overview
+description: Add multi-step reasoning capabilities to your agents for complex problem-solving
+---
+
+Reasoning enables agents to think through complex problems step-by-step before providing an answer. Agno supports both native reasoning models (like DeepSeek-R1, GPT-o1, Claude with extended thinking) and custom chain-of-thought reasoning.
+
+## What is Reasoning?
+
+Reasoning allows agents to break down complex tasks into smaller steps, validate intermediate results, and arrive at well-thought-out conclusions. This is especially valuable for:
+
+- Mathematical problem-solving
+- Complex analysis and decision-making
+- Multi-step planning and execution
+- Problems requiring validation and error correction
+
+## Types of Reasoning
+
+Agno supports two approaches to reasoning:
+
+<CardGroup cols={2}>
+  <Card title="Native Reasoning" icon="brain">
+    Models with built-in reasoning (DeepSeek-R1, GPT-o1, Claude)
+  </Card>
+  <Card title="Chain-of-Thought" icon="list-ol">
+    Custom structured reasoning for any model
+  </Card>
+</CardGroup>
+
+## Quick Start
+
+Enable reasoning with a single parameter:
+
+```python
+from agno.agent import Agent
+from agno.models.openai import OpenAIResponses
+
+# Create agent with reasoning enabled
+reasoning_agent = Agent(
+    name="Reasoning Agent",
+    model=OpenAIResponses(id="gpt-5.2"),
+    reasoning=True,  # Enable reasoning
+    reasoning_min_steps=2,
+    reasoning_max_steps=6,
+)
+
+# Agent will reason through the problem
+reasoning_agent.print_response(
+    "A bat and ball cost $1.10 total. The bat costs $1.00 more than the ball. "
+    "How much does the ball cost?",
+    stream=True,
+    show_full_reasoning=True,
+)
+```
+
+Output:
+```
+Reasoning Step 1:
+Title: Understand the problem
+Action: I will identify the variables and constraints
+Result: Total = $1.10, Bat = Ball + $1.00
+
+Reasoning Step 2:
+Title: Set up equation
+Action: I will write the equation
+Result: Ball + (Ball + $1.00) = $1.10
+
+Reasoning Step 3:
+Title: Solve for ball price
+Action: I will solve: 2×Ball + $1.00 = $1.10
+Result: Ball = $0.05
+
+Final Answer: The ball costs $0.05
+```
+
+## Native Reasoning Models
+
+Native reasoning models have built-in thinking capabilities:
+
+<Tabs>
+  <Tab title="DeepSeek">
+    ```python
+    from agno.models.deepseek import DeepSeekChat
+
+    agent = Agent(
+        model=DeepSeekChat(id="deepseek-reasoner"),
+        reasoning=True,
+        markdown=True,
+    )
+
+    agent.print_response(
+        "What is the square root of 1764?",
+        stream=True,
+        show_full_reasoning=True,
+    )
+    ```
+  </Tab>
+  <Tab title="OpenAI o1">
+    ```python
+    from agno.models.openai import OpenAIChat
+
+    agent = Agent(
+        model=OpenAIChat(id="o1"),
+        reasoning=True,
+        markdown=True,
+    )
+
+    agent.print_response(
+        "Explain quantum entanglement",
+        stream=True,
+        show_full_reasoning=True,
+    )
+    ```
+  </Tab>
+  <Tab title="Anthropic">
+    ```python
+    from agno.models.anthropic import Claude
+
+    agent = Agent(
+        model=Claude(id="claude-4-sonnet-20250514"),
+        reasoning=True,
+        markdown=True,
+    )
+
+    agent.print_response(
+        "Design a database schema for an e-commerce platform",
+        stream=True,
+        show_full_reasoning=True,
+    )
+    ```
+  </Tab>
+  <Tab title="Gemini">
+    ```python
+    from agno.models.google import Gemini
+
+    agent = Agent(
+        model=Gemini(id="gemini-2.0-flash-thinking-exp"),
+        reasoning=True,
+        markdown=True,
+    )
+
+    agent.print_response(
+        "Analyze the time complexity of quicksort",
+        stream=True,
+        show_full_reasoning=True,
+    )
+    ```
+  </Tab>
+</Tabs>
+
+## Reasoning Configuration
+
+Customize reasoning behavior with these parameters:
+
+```python
+agent = Agent(
+    model=OpenAIResponses(id="gpt-5.2"),
+    
+    # Enable reasoning
+    reasoning=True,
+    
+    # Configure reasoning steps
+    reasoning_min_steps=2,     # Minimum reasoning steps required
+    reasoning_max_steps=10,    # Maximum reasoning steps allowed
+    
+    # Optional: Use a different model for reasoning
+    reasoning_model=OpenAIChat(id="o1-mini"),
+    
+    # Optional: Provide a custom reasoning agent
+    reasoning_agent=custom_reasoning_agent,
+)
+```
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `reasoning` | `bool` | `False` | Enable reasoning mode |
+| `reasoning_min_steps` | `int` | `1` | Minimum steps before final answer |
+| `reasoning_max_steps` | `int` | `10` | Maximum reasoning steps allowed |
+| `reasoning_model` | `Model` | `None` | Optional separate model for reasoning |
+| `reasoning_agent` | `Agent` | `None` | Custom reasoning agent |
+
+## Reasoning with Tools
+
+Combine reasoning with tool usage:
+
+```python
+from agno.tools import tool
+
+@tool
+def calculate(expression: str) -> float:
+    """Evaluate a mathematical expression.
+    
+    Args:
+        expression: Math expression to evaluate (e.g., "2 + 2")
+    
+    Returns:
+        Result of the calculation
+    """
+    return eval(expression)
+
+agent = Agent(
+    model=OpenAIResponses(id="gpt-5.2"),
+    reasoning=True,
+    tools=[calculate],
+    show_tool_calls=True,
+)
+
+agent.print_response(
+    "If I have 12 apples and give away 1/3, then buy 5 more, how many do I have?",
+    show_full_reasoning=True,
+)
+```
+
+## Streaming Reasoning
+
+Stream reasoning steps in real-time:
+
+```python
+from agno.agent import AgentEvent
+
+agent = Agent(
+    model=OpenAIResponses(id="gpt-5.2"),
+    reasoning=True,
+)
+
+for event in agent.run(
+    "What's the 20th Fibonacci number?",
+    stream=True,
+):
+    if event.event_type == AgentEvent.reasoning_step:
+        step = event.reasoning_step
+        print(f"Step {step.title}: {step.action}")
+    
+    elif event.event_type == AgentEvent.reasoning_content_delta:
+        print(event.reasoning_content, end="", flush=True)
+    
+    elif event.event_type == AgentEvent.content_delta:
+        print(event.content, end="", flush=True)
+```
+
+## Reasoning Step Structure
+
+Each reasoning step has the following structure:
+
+```python
+from agno.reasoning.step import ReasoningStep, NextAction
+
+class ReasoningStep(BaseModel):
+    title: Optional[str]           # Concise title for the step
+    action: Optional[str]          # What the agent will do
+    result: Optional[str]          # What happened after the action
+    reasoning: Optional[str]       # Thought process and considerations
+    next_action: Optional[NextAction]  # continue, validate, or final_answer
+    confidence: Optional[float]    # Confidence score (0.0 to 1.0)
+```
+
+## Benefits
+
+<CardGroup cols={2}>
+  <Card title="Better Accuracy" icon="bullseye">
+    Multi-step thinking leads to more accurate answers
+  </Card>
+  <Card title="Transparency" icon="eye">
+    See how the agent arrived at its conclusion
+  </Card>
+  <Card title="Error Correction" icon="check">
+    Agent can validate and correct mistakes
+  </Card>
+  <Card title="Complex Problems" icon="puzzle-piece">
+    Handle tasks requiring multiple steps and analysis
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Chain-of-Thought" icon="link" href="/reasoning/chain-of-thought">
+    Learn about custom reasoning strategies
+  </Card>
+  <Card title="Guardrails" icon="shield" href="/guardrails/overview">
+    Add safety checks to your reasoning agents
+  </Card>
+  <Card title="Evaluations" icon="chart-line" href="/evals/overview">
+    Measure reasoning accuracy and quality
+  </Card>
+  <Card title="Learning" icon="brain" href="/learning/overview">
+    Combine reasoning with memory and learning
+  </Card>
+</CardGroup>

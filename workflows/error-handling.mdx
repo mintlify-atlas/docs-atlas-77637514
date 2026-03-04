@@ -1,0 +1,42 @@
+---
+title: "Workflow error handling"
+description: "Handle failures and retries in workflows"
+---
+
+Workflows provide robust error handling for production use.
+
+## Retry on failure
+
+```python
+step = Step(
+    agent=my_agent,
+    max_retries=3,
+    retry_delay=1.0
+)
+```
+
+## Error handling
+
+```python
+from agno.workflow import OnError
+
+step = Step(
+    agent=my_agent,
+    on_error=OnError.CONTINUE  # Or OnError.STOP
+)
+```
+
+## Fallback steps
+
+```python
+workflow = Workflow(
+    steps=[
+        Step(
+            agent=primary_agent,
+            fallback=Step(agent=backup_agent)
+        )
+    ]
+)
+```
+
+See [API reference](/api/workflow) for complete documentation.

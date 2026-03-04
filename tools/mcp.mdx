@@ -1,0 +1,569 @@
+---
+title: Model Context Protocol (MCP)
+description: Connect to MCP servers to access external tools, resources, and prompts in your Agno agents
+---
+
+## Introduction
+
+The Model Context Protocol (MCP) is an open standard for connecting AI agents to external data sources and tools. Agno's `MCPTools` allows you to seamlessly integrate any MCP server into your agents.
+
+## What is MCP?
+
+MCP enables agents to:
+- **Access tools** from external MCP servers
+- **Query resources** like databases, APIs, and file systems  
+- **Use prompts** defined by MCP servers
+- **Maintain context** across different services
+
+Learn more at [modelcontextprotocol.io](https://modelcontextprotocol.io)
+
+## Installation
+
+```bash
+pip install mcp
+```
+
+## Quick Start
+
+Connect to an MCP filesystem server:
+
+```python
+import asyncio
+from pathlib import Path
+from agno.agent import Agent
+from agno.tools.mcp import MCPTools
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+
+async def main():
+    # Initialize the MCP server
+    server_params = StdioServerParameters(
+        command="npx",
+        args=[
+            "-y",
+            "@modelcontextprotocol/server-filesystem",
+            str(Path.cwd())
+        ],
+    )
+    
+    # Create a client session
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            # Initialize MCPTools with the session
+            mcp_tools = MCPTools(session=session)
+            await mcp_tools.initialize()
+
+            # Create agent with MCP tools
+            agent = Agent(tools=[mcp_tools])
+
+            # Use the agent
+            await agent.aprint_response(
+                "Read and summarize the LICENSE file",
+                stream=True
+            )
+
+asyncio.run(main())
+```
+
+## Connection Methods
+
+### Method 1: Simplified Command-based Connection
+
+The easiest way to connect using a command string:
+
+```python
+from agno.agent import Agent
+from agno.tools.mcp import MCPTools
+
+# Connect to filesystem server
+mcp_tools = MCPTools(
+    command="npx -y @modelcontextprotocol/server-filesystem /tmp"
+)
+
+agent = Agent(tools=[mcp_tools])
+```
+
+### Method 2: Using Server Parameters
+
+For more control over the connection:
+
+```python
+from agno.tools.mcp import MCPTools
+from mcp import StdioServerParameters
+
+server_params = StdioServerParameters(
+    command="npx",
+    args=["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+    env={"NODE_ENV": "production"}
+)
+
+mcp_tools = MCPTools(server_params=server_params)
+```
+
+### Method 3: Pre-initialized Session
+
+When you need full control over the session:
+
+```python
+import asyncio
+from agno.agent import Agent
+from agno.tools.mcp import MCPTools
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+
+async def main():
+    server_params = StdioServerParameters(
+        command="npx",
+        args=["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+    )
+    
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            mcp_tools = MCPTools(session=session)
+            await mcp_tools.initialize()
+            
+            agent = Agent(tools=[mcp_tools])
+            await agent.aprint_response("List all files")
+
+asyncio.run(main())
+```
+
+## Transport Types
+
+### STDIO Transport (Default)
+
+For local MCP servers running as processes:
+
+```python
+mcp_tools = MCPTools(
+    command="npx -y @modelcontextprotocol/server-filesystem /tmp",
+    transport="stdio"
+)
+```
+
+### SSE Transport
+
+For MCP servers accessible via Server-Sent Events:
+
+```python
+from agno.tools.mcp import MCPTools
+from agno.tools.mcp.params import SSEClientParams
+
+mcp_tools = MCPTools(
+    url="https://mcp-server.example.com/sse",
+    transport="sse",
+    server_params=SSEClientParams(
+        url="https://mcp-server.example.com/sse",
+        headers={"Authorization": "Bearer token"},
+        timeout=30
+    )
+)
+```
+
+### Streamable HTTP Transport
+
+For HTTP-based MCP servers:
+
+```python
+from agno.tools.mcp import MCPTools
+from agno.tools.mcp.params import StreamableHTTPClientParams
+
+mcp_tools = MCPTools(
+    url="https://mcp-server.example.com",
+    transport="streamable-http",
+    server_params=StreamableHTTPClientParams(
+        url="https://mcp-server.example.com",
+        headers={"Authorization": "Bearer token"},
+        timeout=30
+    )
+)
+```
+
+## Tool Filtering
+
+Control which MCP tools are available to your agent:
+
+### Include Specific Tools
+
+```python
+mcp_tools = MCPTools(
+    command="npx -y @modelcontextprotocol/server-filesystem /tmp",
+    include_tools=["read_file", "list_directory"]  # Only these tools
+)
+```
+
+### Exclude Specific Tools
+
+```python
+mcp_tools = MCPTools(
+    command="npx -y @modelcontextprotocol/server-filesystem /tmp",
+    exclude_tools=["write_file", "delete_file"]  # All except these
+)
+```
+
+### Add Tool Name Prefix
+
+Avoid name collisions when using multiple MCP servers:
+
+```python
+mcp_tools = MCPTools(
+    command="npx -y @modelcontextprotocol/server-filesystem /tmp",
+    tool_name_prefix="fs"  # Tools become: fs_read_file, fs_list_directory, etc.
+)
+```
+
+## Dynamic Headers
+
+For HTTP-based transports, you can provide dynamic headers using a header provider function:
+
+```python
+from agno.tools.mcp import MCPTools
+from agno.run import RunContext
+
+def get_auth_headers(run_context: RunContext) -> dict:
+    """Generate dynamic headers based on run context."""
+    user_id = run_context.session_state.get("user_id", "anonymous")
+    return {
+        "Authorization": f"Bearer {get_token_for_user(user_id)}",
+        "X-Session-ID": run_context.session_id
+    }
+
+mcp_tools = MCPTools(
+    url="https://mcp-server.example.com",
+    transport="streamable-http",
+    header_provider=get_auth_headers  # Called on each agent run
+)
+```
+
+<Note>
+Dynamic headers are only supported with SSE and Streamable HTTP transports.
+</Note>
+
+## Configuration Options
+
+<ParamField path="command" type="str">
+  Command to start the MCP server (for stdio transport)
+</ParamField>
+
+<ParamField path="url" type="str">
+  URL endpoint for SSE or Streamable HTTP connection
+</ParamField>
+
+<ParamField path="env" type="dict">
+  Environment variables to pass to the server
+</ParamField>
+
+<ParamField path="transport" type="str">
+  Transport protocol: "stdio", "sse", or "streamable-http"
+</ParamField>
+
+<ParamField path="server_params" type="Union[StdioServerParameters, SSEClientParams, StreamableHTTPClientParams]">
+  Detailed server connection parameters
+</ParamField>
+
+<ParamField path="session" type="ClientSession">
+  Pre-initialized MCP client session
+</ParamField>
+
+<ParamField path="timeout_seconds" type="int" default="10">
+  Read timeout in seconds for the MCP client
+</ParamField>
+
+<ParamField path="include_tools" type="list[str]">
+  List of tool names to include (if None, includes all)
+</ParamField>
+
+<ParamField path="exclude_tools" type="list[str]">
+  List of tool names to exclude
+</ParamField>
+
+<ParamField path="refresh_connection" type="bool" default="False">
+  If True, refresh connection and tools on each agent run
+</ParamField>
+
+<ParamField path="tool_name_prefix" type="str">
+  Prefix to add to all tool names from this server
+</ParamField>
+
+<ParamField path="header_provider" type="Callable">
+  Function to generate dynamic HTTP headers (HTTP transports only)
+</ParamField>
+
+## Popular MCP Servers
+
+### Filesystem Server
+
+Access local file systems:
+
+```python
+mcp_tools = MCPTools(
+    command="npx -y @modelcontextprotocol/server-filesystem /tmp"
+)
+```
+
+**Available Tools:**
+- `read_file` - Read file contents
+- `write_file` - Write to a file
+- `list_directory` - List directory contents
+- `create_directory` - Create a directory
+- `move_file` - Move/rename files
+- `search_files` - Search for files
+
+### GitHub Server
+
+Interact with GitHub repositories:
+
+```python
+mcp_tools = MCPTools(
+    command="npx -y @modelcontextprotocol/server-github",
+    env={"GITHUB_PERSONAL_ACCESS_TOKEN": "your-token"}
+)
+```
+
+**Available Tools:**
+- `create_repository`
+- `get_repository` 
+- `create_issue`
+- `create_pull_request`
+- `search_repositories`
+- `search_code`
+
+### Brave Search Server
+
+Web search capabilities:
+
+```python
+mcp_tools = MCPTools(
+    command="npx -y @modelcontextprotocol/server-brave-search",
+    env={"BRAVE_API_KEY": "your-api-key"}
+)
+```
+
+### PostgreSQL Server
+
+Database access:
+
+```python
+mcp_tools = MCPTools(
+    command="npx -y @modelcontextprotocol/server-postgres",
+    env={"POSTGRES_CONNECTION_STRING": "postgresql://localhost/mydb"}
+)
+```
+
+### Slack Server
+
+Slack workspace integration:
+
+```python
+mcp_tools = MCPTools(
+    command="npx -y @modelcontextprotocol/server-slack",
+    env={
+        "SLACK_BOT_TOKEN": "your-bot-token",
+        "SLACK_TEAM_ID": "your-team-id"
+    }
+)
+```
+
+## Multiple MCP Servers
+
+Use multiple MCP servers in a single agent:
+
+```python
+import asyncio
+from agno.agent import Agent
+from agno.tools.mcp import MCPTools
+
+async def main():
+    # Filesystem access
+    fs_tools = MCPTools(
+        command="npx -y @modelcontextprotocol/server-filesystem /tmp",
+        tool_name_prefix="fs"
+    )
+    
+    # GitHub access  
+    github_tools = MCPTools(
+        command="npx -y @modelcontextprotocol/server-github",
+        env={"GITHUB_PERSONAL_ACCESS_TOKEN": "token"},
+        tool_name_prefix="github"
+    )
+    
+    # Initialize both
+    async with fs_tools as fs, github_tools as gh:
+        agent = Agent(
+            tools=[fs, gh],
+            instructions="You can access files and GitHub."
+        )
+        
+        await agent.aprint_response(
+            "Read the README.md file and create a GitHub issue "
+            "summarizing its contents"
+        )
+
+asyncio.run(main())
+```
+
+## Connection Management
+
+### Automatic Connection
+
+MCPTools automatically connects when the agent first uses it:
+
+```python
+mcp_tools = MCPTools(command="npx -y @modelcontextprotocol/server-filesystem /tmp")
+
+# Connection happens automatically on first use
+agent = Agent(tools=[mcp_tools])
+agent.print_response("List files")
+```
+
+### Manual Connection Control
+
+For more control, use the async context manager:
+
+```python
+import asyncio
+from agno.tools.mcp import MCPTools
+
+async def main():
+    mcp_tools = MCPTools(
+        command="npx -y @modelcontextprotocol/server-filesystem /tmp"
+    )
+    
+    # Manually connect
+    async with mcp_tools:
+        agent = Agent(tools=[mcp_tools])
+        await agent.aprint_response("List files")
+    
+    # Connection automatically closed after context
+
+asyncio.run(main())
+```
+
+### Refresh Connections
+
+Refresh the connection and tools on each agent run:
+
+```python
+mcp_tools = MCPTools(
+    command="npx -y @modelcontextprotocol/server-filesystem /tmp",
+    refresh_connection=True  # Reconnect on each agent run
+)
+```
+
+## Error Handling
+
+Handle MCP connection errors gracefully:
+
+```python
+import asyncio
+from agno.agent import Agent
+from agno.tools.mcp import MCPTools
+
+async def main():
+    try:
+        mcp_tools = MCPTools(
+            command="npx -y @modelcontextprotocol/server-filesystem /tmp",
+            timeout_seconds=30
+        )
+        
+        async with mcp_tools:
+            # Check if connection is alive
+            if await mcp_tools.is_alive():
+                agent = Agent(tools=[mcp_tools])
+                await agent.aprint_response("List files")
+            else:
+                print("MCP server is not responding")
+                
+    except Exception as e:
+        print(f"Error connecting to MCP server: {e}")
+
+asyncio.run(main())
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Use Tool Filtering">
+    Only include the MCP tools your agent actually needs to reduce context size and improve performance.
+  </Step>
+  
+  <Step title="Set Appropriate Timeouts">
+    Configure `timeout_seconds` based on your server's expected response time.
+  </Step>
+  
+  <Step title="Add Tool Name Prefixes">
+    When using multiple MCP servers, use `tool_name_prefix` to avoid naming conflicts.
+  </Step>
+  
+  <Step title="Handle Connection Errors">
+    Always wrap MCP operations in try-except blocks to handle connection failures gracefully.
+  </Step>
+  
+  <Step title="Use Async Context Managers">
+    Use `async with` to ensure proper cleanup of MCP connections.
+  </Step>
+  
+  <Step title="Secure Credentials">
+    Store API keys and tokens in environment variables, never hardcode them.
+  </Step>
+</Steps>
+
+## Advanced: Creating Custom MCP Servers
+
+You can create your own MCP servers to expose custom tools. See the [MCP documentation](https://modelcontextprotocol.io/docs) for details on building MCP servers.
+
+## Troubleshooting
+
+### Connection Timeout
+
+Increase the timeout if your MCP server needs more time:
+
+```python
+mcp_tools = MCPTools(
+    command="npx -y @modelcontextprotocol/server-filesystem /tmp",
+    timeout_seconds=60  # Increase from default 10s
+)
+```
+
+### Tool Not Available
+
+Check that the tool is not being filtered:
+
+```python
+# List all available tools
+async with mcp_tools:
+    print(mcp_tools.functions.keys())
+```
+
+### Environment Variables Not Working
+
+Ensure environment variables are properly set:
+
+```python
+import os
+
+mcp_tools = MCPTools(
+    command="npx -y @modelcontextprotocol/server-github",
+    env={
+        **os.environ,  # Include existing env vars
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "your-token"
+    }
+)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="MCP Documentation" icon="book" href="https://modelcontextprotocol.io">
+    Learn more about the Model Context Protocol
+  </Card>
+  <Card title="MCP Servers" icon="server" href="https://github.com/modelcontextprotocol/servers">
+    Browse official MCP server implementations
+  </Card>
+  <Card title="Custom Tools" icon="code" href="/tools/custom-tools">
+    Create your own custom tools
+  </Card>
+  <Card title="Built-in Tools" icon="toolbox" href="/tools/built-in">
+    Explore Agno's built-in tools
+  </Card>
+</CardGroup>

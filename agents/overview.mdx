@@ -1,0 +1,78 @@
+---
+title: "Agents overview"
+description: "Build autonomous agents with tools, memory, and knowledge"
+---
+
+Agents are the core building block of Agno. An agent is an autonomous system powered by a language model that can use tools, remember context, and interact with knowledge bases.
+
+## What is an agent?
+
+An agent combines:
+- **A language model** (OpenAI, Anthropic, Google, etc.)
+- **Tools** to take actions (web search, API calls, code execution)
+- **Memory** to remember user preferences and conversation history
+- **Knowledge** to ground responses in your documents
+- **Instructions** to define behavior and personality
+
+## Quick example
+
+```python
+from agno.agent import Agent
+from agno.models.anthropic import Claude
+from agno.tools.duckduckgo import DuckDuckGoTools
+
+agent = Agent(
+    name="Research Assistant",
+    model=Claude(id="claude-sonnet-4-6"),
+    tools=[DuckDuckGoTools()],
+    instructions="You are a helpful research assistant. Always cite your sources."
+)
+
+response = agent.run("What are the latest developments in quantum computing?")
+print(response.content)
+```
+
+## Key capabilities
+
+<CardGroup cols={2}>
+  <Card title="Tool calling" icon="wrench" href="/agents/tools">
+    Give agents the ability to take actions and interact with external systems
+  </Card>
+  <Card title="Memory" icon="brain" href="/memory/overview">
+    Remember user preferences and conversation history across sessions
+  </Card>
+  <Card title="Knowledge" icon="database" href="/knowledge/overview">
+    Ground responses in your documents with RAG
+  </Card>
+  <Card title="Instructions" icon="file-lines" href="/agents/instructions">
+    Define agent behavior, personality, and constraints
+  </Card>
+</CardGroup>
+
+## Agent lifecycle
+
+```python
+# 1. Create agent
+agent = Agent(
+    model=Claude(id="claude-sonnet-4-6"),
+    tools=[YFinanceTools()]
+)
+
+# 2. Run agent
+response = agent.run("What's the stock price of NVDA?")
+
+# 3. Access results
+print(response.content)
+print(response.metrics)  # Token usage, latency, etc.
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/agents/configuration">
+    Learn about all agent parameters
+  </Card>
+  <Card title="API reference" icon="code" href="/api/agent">
+    Complete API documentation
+  </Card>
+</CardGroup>

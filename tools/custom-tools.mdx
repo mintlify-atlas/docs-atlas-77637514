@@ -1,0 +1,600 @@
+---
+title: Custom Tools
+description: Learn how to create custom tools using the @tool decorator and Toolkit class
+---
+
+## Introduction
+
+Agno provides flexible ways to create custom tools for your agents. You can:
+
+1. Convert any Python function into a tool using the `@tool` decorator
+2. Create tool collections by subclassing the `Toolkit` class
+3. Add tools directly as plain functions (auto-converted)
+
+## Using the @tool Decorator
+
+The `@tool` decorator is the simplest way to create custom tools. It converts any Python function into a tool that agents can use.
+
+### Basic Function as Tool
+
+```python
+from agno.agent import Agent
+from agno.tools import tool
+import httpx
+import json
+
+@tool
+def get_top_hackernews_stories(num_stories: int = 10) -> str:
+    """Use this function to get top stories from Hacker News.
+
+    Args:
+        num_stories (int): Number of stories to return. Defaults to 10.
+
+    Returns:
+        str: JSON string of top stories.
+    """
+    # Fetch top story IDs
+    response = httpx.get("https://hacker-news.firebaseio.com/v0/topstories.json")
+    story_ids = response.json()
+
+    # Fetch story details
+    stories = []
+    for story_id in story_ids[:num_stories]:
+        story_response = httpx.get(
+            f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
+        )
+        story = story_response.json()
+        if "text" in story:
+            story.pop("text", None)
+        stories.append(story)
+    return json.dumps(stories)
+
+agent = Agent(tools=[get_top_hackernews_stories], markdown=True)
+agent.print_response("Summarize the top 5 stories on hackernews?")
+```
+
+<Note>
+The docstring becomes the tool description that helps the agent understand when to use the tool.
+Parameter type hints and docstring argument descriptions are automatically extracted.
+</Note>
+
+### Plain Functions (Auto-converted)
+
+You don't even need the `@tool` decorator - plain functions work too:
+
+```python
+import httpx
+import json
+from agno.agent import Agent
+
+def get_weather(city: str) -> str:
+    """Get current weather for a city.
+    
+    Args:
+        city: Name of the city
+    
+    Returns:
+        Weather information as JSON string
+    """
+    # Implementation...
+    return json.dumps({"city": city, "temp": 72})
+
+# Function is automatically converted to a tool
+agent = Agent(tools=[get_weather])
+```
+
+### Tool Decorator with Options
+
+Customize tool behavior with decorator parameters:
+
+```python
+from agno.tools import tool
+import httpx
+
+@tool(
+    name="fetch_hackernews_stories",
+    description="Get top stories from Hacker News",
+    show_result=True,  # Show result to user
+    instructions="""
+        Use this tool when:
+          1. The user wants to see recent popular tech news
+          2. You need examples of trending technology topics
+          3. The user asks for Hacker News content
+
+        When presenting results:
+          - Highlight interesting or unusual stories
+          - Summarize key themes if multiple stories are related
+    """
+)
+def get_top_hackernews_stories(num_stories: int = 5) -> str:
+    response = httpx.get("https://hacker-news.firebaseio.com/v0/topstories.json")
+    story_ids = response.json()
+
+    stories = []
+    for story_id in story_ids[:num_stories]:
+        story_response = httpx.get(
+            f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
+        )
+        story = story_response.json()
+        stories.append(f"{story.get('title')} - {story.get('url', 'No URL')}")
+
+    return "\n".join(stories)
+
+agent = Agent(tools=[get_top_hackernews_stories], markdown=True)
+agent.print_response("Show me the top news from Hacker News")
+```
+
+### Decorator Parameters
+
+<ParamField path="name" type="str">
+  Override the function name used by the agent
+</ParamField>
+
+<ParamField path="description" type="str">
+  Override the function description (defaults to docstring)
+</ParamField>
+
+<ParamField path="instructions" type="str">
+  Detailed instructions for when and how to use the tool
+</ParamField>
+
+<ParamField path="show_result" type="bool" default="False">
+  If True, display the tool result to the user
+</ParamField>
+
+<ParamField path="stop_after_tool_call" type="bool" default="False">
+  If True, stop agent execution after this tool is called
+</ParamField>
+
+<ParamField path="requires_confirmation" type="bool" default="False">
+  If True, ask user for confirmation before executing
+</ParamField>
+
+<ParamField path="requires_user_input" type="bool" default="False">
+  If True, collect additional input from user before executing
+</ParamField>
+
+<ParamField path="external_execution" type="bool" default="False">
+  If True, tool will be executed outside agent's control loop
+</ParamField>
+
+<ParamField path="cache_results" type="bool" default="False">
+  Enable caching of tool results
+</ParamField>
+
+<ParamField path="cache_ttl" type="int" default="3600">
+  Cache time-to-live in seconds
+</ParamField>
+
+<ParamField path="cache_dir" type="str">
+  Directory to store cache files
+</ParamField>
+
+## Accessing Agent Context
+
+Tools can access the agent instance and run context:
+
+```python
+from agno.agent import Agent
+from agno.tools import tool
+from agno.run import RunContext
+import httpx
+import json
+
+@tool(show_result=True)
+def get_top_hackernews_stories(agent: Agent) -> str:
+    """Get top HackerNews stories. Number of stories comes from agent dependencies."""
+    # Access agent dependencies
+    num_stories = agent.dependencies.get("num_stories", 5) if agent.dependencies else 5
+
+    response = httpx.get("https://hacker-news.firebaseio.com/v0/topstories.json")
+    story_ids = response.json()
+
+    stories = []
+    for story_id in story_ids[:num_stories]:
+        story_response = httpx.get(
+            f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
+        )
+        story = story_response.json()
+        if "text" in story:
+            story.pop("text", None)
+        stories.append(story)
+    
+    return json.dumps(stories)
+
+# Create agent with dependencies
+agent = Agent(
+    dependencies={"num_stories": 3},
+    tools=[get_top_hackernews_stories],
+    markdown=True,
+)
+
+agent.print_response("What are the top hackernews stories?")
+```
+
+<Note>
+When a function has an `agent` parameter, Agno automatically injects the agent instance.
+Similarly, `run_context` parameters receive the current `RunContext`.
+</Note>
+
+## Async Tools
+
+Create async tools for better performance with I/O operations:
+
+```python
+import asyncio
+import httpx
+import json
+from agno.agent import Agent
+from agno.tools import tool
+
+@tool(description="Get the top hackernews stories")
+async def get_top_hackernews_stories(num_stories: int = 5) -> str:
+    """Async function to fetch HackerNews stories."""
+    # Fetch top story IDs
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://hacker-news.firebaseio.com/v0/topstories.json"
+        )
+    story_ids = response.json()
+
+    # Fetch story details
+    stories = []
+    for story_id in story_ids[:num_stories]:
+        async with httpx.AsyncClient() as client:
+            story_response = await client.get(
+                f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
+            )
+        story = story_response.json()
+        if "text" in story:
+            story.pop("text", None)
+        stories.append(story)
+    
+    return json.dumps(stories)
+
+agent = Agent(
+    tools=[get_top_hackernews_stories],
+    markdown=True,
+)
+
+# Use async agent methods
+asyncio.run(agent.aprint_response("What are the top stories?"))
+```
+
+## Creating Custom Toolkits
+
+For collections of related tools, create a custom `Toolkit` subclass:
+
+```python
+from typing import List, Any
+from agno.tools import Toolkit
+import httpx
+import json
+
+class HackerNewsToolkit(Toolkit):
+    def __init__(self, **kwargs):
+        tools: List[Any] = [
+            self.get_top_stories,
+            self.get_story_details,
+            self.search_stories,
+        ]
+        super().__init__(name="hackernews_tools", tools=tools, **kwargs)
+
+    def get_top_stories(self, num_stories: int = 10) -> str:
+        """Get top stories from Hacker News.
+        
+        Args:
+            num_stories: Number of stories to fetch
+        
+        Returns:
+            JSON string of top stories
+        """
+        response = httpx.get("https://hacker-news.firebaseio.com/v0/topstories.json")
+        story_ids = response.json()
+        
+        stories = []
+        for story_id in story_ids[:num_stories]:
+            story_response = httpx.get(
+                f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
+            )
+            story = story_response.json()
+            stories.append(story)
+        
+        return json.dumps(stories)
+
+    def get_story_details(self, story_id: int) -> str:
+        """Get details of a specific story.
+        
+        Args:
+            story_id: HackerNews story ID
+        
+        Returns:
+            JSON string of story details
+        """
+        response = httpx.get(
+            f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
+        )
+        return json.dumps(response.json())
+
+    def search_stories(self, query: str, num_results: int = 10) -> str:
+        """Search HackerNews stories.
+        
+        Args:
+            query: Search query
+            num_results: Number of results
+        
+        Returns:
+            JSON string of search results
+        """
+        # Implementation using HN algolia API
+        response = httpx.get(
+            f"https://hn.algolia.com/api/v1/search?query={query}&hitsPerPage={num_results}"
+        )
+        return json.dumps(response.json())
+
+# Use the toolkit
+from agno.agent import Agent
+
+agent = Agent(
+    tools=[HackerNewsToolkit()],
+    instructions="You can access HackerNews data.",
+    markdown=True,
+)
+
+agent.print_response("Search for stories about 'Python' and summarize the top 3")
+```
+
+### Toolkit with Include/Exclude
+
+Filter which tools are available from your toolkit:
+
+```python
+# Only include specific tools
+toolkit = HackerNewsToolkit(
+    include_tools=["get_top_stories", "get_story_details"]
+)
+
+# Exclude specific tools
+toolkit = HackerNewsToolkit(
+    exclude_tools=["search_stories"]
+)
+```
+
+## Tool Caching
+
+Cache tool results to improve performance and reduce API calls:
+
+```python
+from agno.tools import tool
+import httpx
+
+@tool(
+    cache_results=True,
+    cache_ttl=3600,  # Cache for 1 hour
+    cache_dir="/tmp/tool_cache"
+)
+def get_stock_price(symbol: str) -> str:
+    """Get current stock price (cached for 1 hour)."""
+    # This will only make actual API call once per hour per symbol
+    response = httpx.get(f"https://api.example.com/stock/{symbol}")
+    return response.text
+```
+
+## Tool Hooks
+
+Add pre and post execution hooks to tools:
+
+```python
+from agno.tools import tool
+from agno.tools.function import FunctionCall
+
+def log_tool_use(fc: FunctionCall):
+    """Hook that logs tool usage."""
+    print(f"Calling tool: {fc.function.name}")
+    print(f"Arguments: {fc.arguments}")
+
+def log_tool_result(fc: FunctionCall):
+    """Hook that logs tool results."""
+    print(f"Tool {fc.function.name} completed")
+    print(f"Result: {fc.result}")
+
+@tool(
+    pre_hook=log_tool_use,
+    post_hook=log_tool_result
+)
+def my_tool(param: str) -> str:
+    """Tool with logging hooks."""
+    return f"Processed: {param}"
+```
+
+## Stop After Tool Call
+
+Make the agent stop and return after calling a specific tool:
+
+```python
+from agno.tools import tool
+
+@tool(stop_after_tool_call=True, show_result=True)
+def execute_code(code: str) -> str:
+    """Execute Python code and return result.
+    
+    Agent will stop after executing this tool.
+    """
+    # Execute code (simplified)
+    result = eval(code)
+    return str(result)
+
+agent = Agent(tools=[execute_code])
+# Agent will execute the tool and stop, showing the result
+agent.print_response("Calculate 2 + 2")
+```
+
+## Human-in-the-Loop Tools
+
+Require user confirmation before executing sensitive tools:
+
+```python
+from agno.tools import tool
+
+@tool(requires_confirmation=True)
+def delete_file(filepath: str) -> str:
+    """Delete a file (requires user confirmation).
+    
+    Args:
+        filepath: Path to file to delete
+    """
+    import os
+    os.remove(filepath)
+    return f"Deleted {filepath}"
+
+@tool(requires_user_input=True, user_input_fields=["confirmation_code"])
+def transfer_money(amount: float, to_account: str, confirmation_code: str) -> str:
+    """Transfer money (requires user confirmation code).
+    
+    Args:
+        amount: Amount to transfer
+        to_account: Destination account
+        confirmation_code: User's confirmation code
+    """
+    # Process transfer
+    return f"Transferred ${amount} to {to_account}"
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Write Clear Docstrings">
+    The docstring becomes the tool description. Make it clear and specific about what the tool does and when to use it.
+  </Step>
+  
+  <Step title="Use Type Hints">
+    Type hints help generate the JSON schema for tool parameters automatically.
+  </Step>
+  
+  <Step title="Handle Errors Gracefully">
+    Return error messages as strings rather than raising exceptions when possible.
+  </Step>
+  
+  <Step title="Keep Tools Focused">
+    Each tool should do one thing well. Create multiple tools rather than one complex tool.
+  </Step>
+  
+  <Step title="Use Async for I/O">
+    For tools that make network requests or database queries, use async functions for better performance.
+  </Step>
+  
+  <Step title="Add Instructions for Complex Tools">
+    Use the `instructions` parameter to provide detailed guidance on when and how to use the tool.
+  </Step>
+</Steps>
+
+## Complete Example: Weather Toolkit
+
+```python
+from typing import List, Any
+from agno.tools import Toolkit, tool
+import httpx
+import json
+
+class WeatherToolkit(Toolkit):
+    """Toolkit for weather-related operations."""
+    
+    def __init__(self, api_key: str, **kwargs):
+        self.api_key = api_key
+        tools: List[Any] = [
+            self.get_current_weather,
+            self.get_forecast,
+            self.search_locations,
+        ]
+        super().__init__(name="weather_tools", tools=tools, **kwargs)
+
+    def get_current_weather(self, city: str) -> str:
+        """Get current weather for a city.
+        
+        Args:
+            city: City name
+        
+        Returns:
+            JSON string with current weather data
+        """
+        # Geocode city
+        geo_resp = httpx.get(
+            "https://geocoding-api.open-meteo.com/v1/search",
+            params={"name": city, "count": 1, "language": "en", "format": "json"}
+        )
+        geo_data = geo_resp.json()
+        if not geo_data.get("results"):
+            return json.dumps({"error": f"City '{city}' not found"})
+        
+        location = geo_data["results"][0]
+        lat, lon = location["latitude"], location["longitude"]
+
+        # Get weather
+        weather_resp = httpx.get(
+            "https://api.open-meteo.com/v1/forecast",
+            params={
+                "latitude": lat,
+                "longitude": lon,
+                "current_weather": True,
+                "timezone": "auto"
+            }
+        )
+        return weather_resp.text
+
+    def get_forecast(self, city: str, days: int = 7) -> str:
+        """Get weather forecast for a city.
+        
+        Args:
+            city: City name
+            days: Number of days to forecast (1-7)
+        
+        Returns:
+            JSON string with forecast data
+        """
+        # Implementation similar to get_current_weather
+        # with daily forecast parameters
+        pass
+
+    def search_locations(self, query: str) -> str:
+        """Search for locations by name.
+        
+        Args:
+            query: Location search query
+        
+        Returns:
+            JSON string with matching locations
+        """
+        resp = httpx.get(
+            "https://geocoding-api.open-meteo.com/v1/search",
+            params={"name": query, "count": 10, "language": "en", "format": "json"}
+        )
+        return resp.text
+
+# Use the toolkit
+from agno.agent import Agent
+
+agent = Agent(
+    tools=[WeatherToolkit(api_key="your-api-key")],
+    instructions="You can provide weather information for any location.",
+    markdown=True,
+)
+
+agent.print_response("What's the weather like in San Francisco?")
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="MCP Integration" icon="plug" href="/tools/mcp">
+    Connect to Model Context Protocol servers for external tools
+  </Card>
+  <Card title="Built-in Tools" icon="toolbox" href="/tools/built-in">
+    Explore commonly used built-in tools
+  </Card>
+  <Card title="Tool Cookbook" icon="book" href="https://github.com/agno-agi/agno/tree/main/cookbook/91_tools">
+    See 100+ real-world tool examples
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/tools">
+    View complete API documentation
+  </Card>
+</CardGroup>

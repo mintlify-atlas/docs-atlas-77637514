@@ -1,0 +1,300 @@
+---
+title: Learning
+description: Enable agents to learn and improve from experience
+---
+
+The Learning system enables agents to learn from interactions, build knowledge over time, and improve their performance. It combines memory, knowledge updates, and adaptive behavior.
+
+## LearningMachine
+
+The `LearningMachine` class provides unified learning capabilities for agents.
+
+```python
+from agno import Agent
+from agno.learn.machine import LearningMachine
+from agno.db.sqlite import SQLiteDb
+
+db = SQLiteDb(db_file="agent.db")
+
+agent = Agent(
+    model="gpt-4o",
+    db=db,
+    learning=True,  # Enable learning
+    add_learnings_to_context=True
+)
+```
+
+## Enabling Learning
+
+<ParamField path="learning" type="bool | LearningMachine" default="None">
+  Enable learning. Use `True` for default learning or provide a LearningMachine instance for custom configuration.
+</ParamField>
+
+<ParamField path="add_learnings_to_context" type="bool" default="True">
+  If True, adds learnings to the agent's context.
+</ParamField>
+
+## How Learning Works
+
+1. **Experience Collection**: Agent interactions are stored in the database
+2. **Pattern Recognition**: System identifies patterns in successful interactions
+3. **Knowledge Extraction**: Useful information is extracted and stored
+4. **Context Enhancement**: Learnings are added to future interactions
+
+## Example Usage
+
+<CodeGroup>
+```python Basic Learning
+from agno import Agent
+from agno.db.sqlite import SQLiteDb
+
+db = SQLiteDb(db_file="learning.db")
+
+agent = Agent(
+    model="gpt-4o",
+    db=db,
+    learning=True,
+    add_learnings_to_context=True
+)
+
+# Agent learns from interactions
+response = agent.run("I prefer concise answers", user_id="user_1")
+
+# In future interactions, agent remembers preference
+response = agent.run("Explain quantum computing", user_id="user_1")
+# Agent provides concise answer based on learned preference
+```
+
+```python Custom LearningMachine
+from agno import Agent
+from agno.learn.machine import LearningMachine
+from agno.db.sqlite import SQLiteDb
+
+db = SQLiteDb(db_file="agent.db")
+
+learning_machine = LearningMachine(
+    db=db,
+    model="gpt-4o",
+    # Custom configuration
+)
+
+agent = Agent(
+    model="gpt-4o",
+    db=db,
+    learning=learning_machine,
+    add_learnings_to_context=True
+)
+```
+
+```python Multi-User Learning
+from agno import Agent
+from agno.db.sqlite import SQLiteDb
+
+db = SQLiteDb(db_file="learning.db")
+
+agent = Agent(
+    model="gpt-4o",
+    db=db,
+    learning=True
+)
+
+# Each user has separate learnings
+agent.run("I like detailed explanations", user_id="alice")
+agent.run("Keep it brief", user_id="bob")
+
+# Learnings are user-specific
+agent.run("Explain AI", user_id="alice")  # Detailed response
+agent.run("Explain AI", user_id="bob")    # Brief response
+```
+
+```python Learning with Memory
+from agno import Agent
+from agno.memory import MemoryManager
+from agno.db.sqlite import SQLiteDb
+
+db = SQLiteDb(db_file="agent.db")
+
+agent = Agent(
+    model="gpt-4o",
+    db=db,
+    learning=True,
+    memory_manager=MemoryManager(db=db),
+    update_memory_on_run=True,
+    add_memories_to_context=True
+)
+
+# Agent learns patterns and remembers facts
+agent.run("I'm a software engineer working on ML", user_id="user_1")
+agent.run("I prefer Python over JavaScript", user_id="user_1")
+
+# Future interactions use both memory and learnings
+agent.run("Suggest a project for me", user_id="user_1")
+# Agent suggests ML project in Python based on memory and learned preferences
+```
+
+```python Learning from Feedback
+from agno import Agent
+from agno.db.sqlite import SQLiteDb
+
+db = SQLiteDb(db_file="learning.db")
+
+agent = Agent(
+    model="gpt-4o",
+    db=db,
+    learning=True
+)
+
+# Initial response
+response = agent.run("Explain recursion", user_id="user_1")
+
+# User provides feedback
+agent.run(
+    "That explanation was too technical. Use simpler language.",
+    user_id="user_1"
+)
+
+# Agent learns and adjusts
+response = agent.run("Explain inheritance", user_id="user_1")
+# Uses simpler language based on learned preference
+```
+
+```python Domain-Specific Learning
+from agno import Agent
+from agno.db.sqlite import SQLiteDb
+
+db = SQLiteDb(db_file="customer_support.db")
+
+support_agent = Agent(
+    model="gpt-4o",
+    db=db,
+    learning=True,
+    instructions=[
+        "You are a customer support agent",
+        "Learn from successful resolutions",
+        "Adapt your approach based on customer feedback"
+    ]
+)
+
+# Agent learns effective support patterns
+support_agent.run("How do I reset my password?", user_id="customer_1")
+support_agent.run("That worked perfectly, thanks!", user_id="customer_1")
+
+# Applies learned patterns to similar issues
+support_agent.run("I can't access my account", user_id="customer_2")
+```
+</CodeGroup>
+
+## Learning Types
+
+### 1. User Preferences
+
+Learn communication style, detail level, formatting preferences:
+
+```python
+agent.run("I prefer bullet points over paragraphs", user_id="user_1")
+# Future responses use bullet points
+```
+
+### 2. Domain Knowledge
+
+Learn facts and information from interactions:
+
+```python
+agent.run("Our API rate limit is 1000 requests/hour", user_id="admin")
+# Agent remembers and uses this information
+```
+
+### 3. Task Patterns
+
+Learn successful approaches to tasks:
+
+```python
+agent.run("When analyzing code, always check for edge cases first")
+# Agent prioritizes edge cases in future code analysis
+```
+
+### 4. Error Corrections
+
+Learn from mistakes:
+
+```python
+agent.run("That calculation was wrong. Always use parentheses for order of operations")
+# Agent improves future calculations
+```
+
+## Accessing Learnings
+
+```python
+from agno import Agent
+
+agent = Agent(model="gpt-4o", db=db, learning=True)
+
+# Run some interactions
+agent.run("Training data...", user_id="user_1")
+
+# Access learning machine
+if agent.learning_machine:
+    # Get learnings for user
+    learnings = agent.learning_machine.get_learnings(user_id="user_1")
+    for learning in learnings:
+        print(learning.content)
+```
+
+## Combining Learning Features
+
+```python
+from agno import Agent
+from agno.memory import MemoryManager
+from agno.db.sqlite import SQLiteDb
+
+db = SQLiteDb(db_file="agent.db")
+
+agent = Agent(
+    model="gpt-4o",
+    db=db,
+    
+    # Memory for facts
+    memory_manager=MemoryManager(db=db),
+    update_memory_on_run=True,
+    add_memories_to_context=True,
+    
+    # Learning for patterns and preferences
+    learning=True,
+    add_learnings_to_context=True,
+    
+    # History for context
+    add_history_to_context=True,
+)
+
+# Agent uses all three:
+# - Memory: Remembers user facts
+# - Learning: Learns preferences and patterns  
+# - History: Maintains conversation context
+```
+
+## Best Practices
+
+1. **Enable database**: Learning requires a database to store patterns
+2. **User IDs**: Use consistent user IDs for personalized learning
+3. **Feedback loops**: Encourage users to provide feedback
+4. **Privacy**: Implement proper data governance for learned information
+5. **Monitoring**: Review what the agent is learning
+6. **Combining features**: Use with memory and history for best results
+7. **Clear learnings**: Provide option to clear learned patterns
+
+## Use Cases
+
+- **Personal assistants**: Learn user preferences and habits
+- **Customer support**: Learn effective resolution patterns
+- **Educational tutors**: Adapt to student learning style
+- **Code assistants**: Learn project conventions and patterns
+- **Sales agents**: Learn effective sales approaches
+- **Healthcare**: Learn patient communication preferences
+
+## Limitations
+
+- Requires database for persistence
+- Learning quality depends on interaction volume
+- May need periodic review and cleanup
+- Privacy considerations for learned data
+- Requires user IDs for personalized learning

@@ -1,0 +1,256 @@
+---
+title: KnowledgeProtocol
+description: Protocol for implementing custom knowledge bases
+---
+
+The `KnowledgeProtocol` defines the minimal interface for knowledge implementations. It enables custom knowledge bases to be used with agents while maintaining flexibility in tool naming and functionality.
+
+## Overview
+
+KnowledgeProtocol is a Protocol class that any knowledge implementation can satisfy. Each implementation defines:
+
+- What tools it exposes to the agent
+- What context/instructions it provides
+- How it retrieves documents (optional)
+
+## Required Methods
+
+### build_context()
+
+Build context string for the agent's system prompt.
+
+```python
+def build_context(self, **kwargs) -> str:
+    """Return instructions about how to use this knowledge."""
+    return "Use search_docs to find information."
+```
+
+**Returns:** Formatted context string to inject into system prompt.
+
+### get_tools()
+
+Get tools to expose to the agent (sync version).
+
+```python
+def get_tools(self, **kwargs) -> List[Callable]:
+    """Return callable tools for the agent."""
+    return [self.search_docs]
+```
+
+**Returns:** List of callable tools.
+
+### aget_tools()
+
+Async version of `get_tools()`.
+
+```python
+async def aget_tools(self, **kwargs) -> List[Callable]:
+    """Return callable tools for the agent."""
+    return [self.search_docs]
+```
+
+## Optional Methods
+
+### retrieve()
+
+Retrieve documents for context injection (used by `add_knowledge_to_context`).
+
+```python
+def retrieve(self, query: str, **kwargs) -> List[Document]:
+    """Retrieve documents for the query."""
+    results = self._internal_search(query)
+    return [Document(content=r) for r in results]
+```
+
+### aretrieve()
+
+Async version of `retrieve()`.
+
+```python
+async def aretrieve(self, query: str, **kwargs) -> List[Document]:
+    """Async retrieve documents."""
+    results = await self._internal_search(query)
+    return [Document(content=r) for r in results]
+```
+
+## Document Class
+
+The `Document` class represents a piece of knowledge:
+
+- `content`: The document content
+- `metadata`: Optional metadata dictionary
+- `id`: Optional document identifier
+
+## Implementation Example
+
+<CodeGroup>
+```python Basic Implementation
+from typing import List, Callable
+from agno.knowledge.document import Document
+from agno.knowledge.protocol import KnowledgeProtocol
+
+class MyKnowledge:
+    """Custom knowledge implementation."""
+    
+    def __init__(self, data_source: str):
+        self.data_source = data_source
+    
+    def build_context(self, **kwargs) -> str:
+        return "Use search_docs to find information from the knowledge base."
+    
+    def get_tools(self, **kwargs) -> List[Callable]:
+        return [self.search_docs]
+    
+    async def aget_tools(self, **kwargs) -> List[Callable]:
+        return [self.search_docs]
+    
+    def search_docs(self, query: str) -> str:
+        """Search the knowledge base.
+        
+        Args:
+            query: Search query
+        """
+        # Your search implementation
+        results = self._search(query)
+        return "\n\n".join(results)
+    
+    def retrieve(self, query: str, **kwargs) -> List[Document]:
+        """Retrieve documents for context injection."""
+        results = self._search(query)
+        return [Document(content=r) for r in results]
+    
+    def _search(self, query: str) -> List[str]:
+        # Your actual search logic
+        return ["Result 1", "Result 2"]
+```
+
+```python With Agent
+from agno import Agent
+
+knowledge = MyKnowledge(data_source="/data/docs")
+
+agent = Agent(
+    model="gpt-4o",
+    knowledge=knowledge,
+    search_knowledge=True  # Adds knowledge tools
+)
+
+response = agent.run("What is AI?")
+```
+
+```python With Context Injection
+from agno import Agent
+
+knowledge = MyKnowledge(data_source="/data/docs")
+
+agent = Agent(
+    model="gpt-4o",
+    knowledge=knowledge,
+    add_knowledge_to_context=True  # Uses retrieve()
+)
+
+response = agent.run("What is AI?")
+# Agent receives relevant docs in the prompt
+```
+
+```python Vector Database Example
+from typing import List, Callable
+from agno.knowledge.document import Document
+from agno.vectordb import PgVector
+
+class VectorKnowledge:
+    def __init__(self, vector_db: PgVector):
+        self.vector_db = vector_db
+    
+    def build_context(self, **kwargs) -> str:
+        return "Use search_knowledge to search the vector database."
+    
+    def get_tools(self, **kwargs) -> List[Callable]:
+        return [self.search_knowledge]
+    
+    async def aget_tools(self, **kwargs) -> List[Callable]:
+        return [self.asearch_knowledge]
+    
+    def search_knowledge(self, query: str, num_results: int = 5) -> str:
+        """Search the knowledge base.
+        
+        Args:
+            query: Search query
+            num_results: Number of results to return
+        """
+        results = self.vector_db.search(query, limit=num_results)
+        return "\n\n".join([r.content for r in results])
+    
+    async def asearch_knowledge(self, query: str, num_results: int = 5) -> str:
+        """Async search."""
+        results = await self.vector_db.asearch(query, limit=num_results)
+        return "\n\n".join([r.content for r in results])
+    
+    def retrieve(self, query: str, **kwargs) -> List[Document]:
+        num_documents = kwargs.get("num_documents", 5)
+        results = self.vector_db.search(query, limit=num_documents)
+        return [Document(content=r.content, metadata=r.meta_data) for r in results]
+```
+
+```python API-based Knowledge
+class APIKnowledge:
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+    
+    def build_context(self, **kwargs) -> str:
+        return "Use query_api to search the company knowledge base."
+    
+    def get_tools(self, **kwargs) -> List[Callable]:
+        return [self.query_api, self.get_document]
+    
+    async def aget_tools(self, **kwargs) -> List[Callable]:
+        return [self.query_api, self.get_document]
+    
+    def query_api(self, query: str) -> str:
+        """Query the API for information."""
+        response = requests.post(
+            "https://api.example.com/search",
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            json={"query": query}
+        )
+        return response.json()["results"]
+    
+    def get_document(self, doc_id: str) -> str:
+        """Get a specific document by ID."""
+        response = requests.get(
+            f"https://api.example.com/docs/{doc_id}",
+            headers={"Authorization": f"Bearer {self.api_key}"}
+        )
+        return response.json()["content"]
+```
+</CodeGroup>
+
+## Built-in Implementations
+
+Agno provides several built-in knowledge implementations:
+
+- **PDFKnowledge**: Load knowledge from PDF files
+- **WebKnowledge**: Scrape websites for knowledge
+- **WikipediaKnowledge**: Search Wikipedia
+- **TextKnowledge**: Load from text files
+- **CSVKnowledge**: Load from CSV files
+- **JSONKnowledge**: Load from JSON files
+
+All built-in implementations satisfy the KnowledgeProtocol.
+
+## Benefits
+
+1. **Flexible**: Each implementation decides what tools to expose
+2. **Type-safe**: Protocol typing ensures interface compliance
+3. **Custom naming**: Not forced to use specific tool names
+4. **Optional features**: Implement only what you need
+5. **Composable**: Easy to combine multiple knowledge sources
+
+## Best Practices
+
+1. **Clear instructions**: Provide clear context about available tools
+2. **Tool names**: Use descriptive tool names that indicate their purpose
+3. **Error handling**: Handle errors gracefully in tool implementations
+4. **Async support**: Implement async variants for I/O operations
+5. **Metadata**: Include useful metadata in Document objects
+6. **Batching**: Support batch operations when possible

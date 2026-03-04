@@ -1,122 +1,193 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Agno",
+  "theme": "palm",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#fc4414",
+    "light": "#fc4414",
+    "dark": "#1c1c1c"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "https://media.brand.dev/4d774e53-89d2-4694-9cbc-165d5b613179.png",
+  "logo": {
+    "light": "https://media.brand.dev/cb203325-4891-4a12-961c-6902485bf2ca.svg",
+    "dark": "https://media.brand.dev/cb203325-4891-4a12-961c-6902485bf2ca.svg"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/agno-agi/agno"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/agno-agi/agno",
+      "discord": "https://www.agno.com/discord"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
-              "development"
+              "installation",
+              "core-concepts"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Building Blocks",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "agents/overview",
+              "agents/configuration",
+              "agents/instructions",
+              "agents/tools",
+              "agents/structured-output",
+              "teams/overview",
+              "teams/modes",
+              "teams/coordination",
+              "workflows/overview",
+              "workflows/steps",
+              "workflows/control-flow",
+              "workflows/error-handling"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Production Runtime",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "agent-os/overview",
+              "agent-os/getting-started",
+              "agent-os/deployment",
+              "agent-os/authentication",
+              "agent-os/api-reference"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Memory & State",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "memory/overview",
+              "memory/user-memories",
+              "memory/session-state",
+              "storage/overview",
+              "storage/databases"
+            ]
+          },
+          {
+            "group": "Knowledge & RAG",
+            "pages": [
+              "knowledge/overview",
+              "knowledge/document-loaders",
+              "knowledge/chunking",
+              "knowledge/embeddings",
+              "knowledge/vector-databases",
+              "knowledge/retrieval"
+            ]
+          },
+          {
+            "group": "Advanced Features",
+            "pages": [
+              "learning/overview",
+              "learning/self-improvement",
+              "reasoning/overview",
+              "reasoning/chain-of-thought",
+              "guardrails/overview",
+              "guardrails/input-validation",
+              "approval/human-in-the-loop",
+              "evals/overview",
+              "tracing/overview"
+            ]
+          },
+          {
+            "group": "Models",
+            "pages": [
+              "models/overview",
+              "models/openai",
+              "models/anthropic",
+              "models/google",
+              "models/aws-bedrock",
+              "models/azure",
+              "models/custom"
+            ]
+          },
+          {
+            "group": "Tools & Integrations",
+            "pages": [
+              "tools/overview",
+              "tools/built-in",
+              "tools/custom-tools",
+              "tools/mcp",
+              "integrations/overview"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Core Classes",
             "pages": [
-              "api-reference/introduction"
+              "api/agent",
+              "api/team",
+              "api/workflow",
+              "api/agent-os"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Models",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/models/base",
+              "api/models/message",
+              "api/models/response"
+            ]
+          },
+          {
+            "group": "Tools & Functions",
+            "pages": [
+              "api/tools/toolkit",
+              "api/tools/function",
+              "api/tools/decorator"
+            ]
+          },
+          {
+            "group": "Storage & Memory",
+            "pages": [
+              "api/storage/base",
+              "api/storage/sqlite",
+              "api/storage/postgres",
+              "api/memory/manager",
+              "api/knowledge/protocol"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "api/guardrails",
+              "api/evals",
+              "api/reasoning",
+              "api/learning"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Cookbook",
+        "groups": [
+          {
+            "group": "Examples",
+            "pages": [
+              "cookbook/quickstart",
+              "cookbook/agents",
+              "cookbook/teams",
+              "cookbook/workflows",
+              "cookbook/production"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

@@ -1,0 +1,33 @@
+---
+title: "AWS Bedrock"
+description: "Use AWS Bedrock models with Agno"
+---
+
+## Setup
+
+```bash
+pip install agno[aws-bedrock]
+```
+
+Configure AWS credentials:
+
+```bash
+export AWS_ACCESS_KEY_ID="your-key"
+export AWS_SECRET_ACCESS_KEY="your-secret"
+export AWS_REGION="us-east-1"
+```
+
+## Usage
+
+```python
+from agno.agent import Agent
+from agno.models.aws import BedrockClaude
+
+agent = Agent(
+    model=BedrockClaude(
+        id="anthropic.claude-v2"
+    )
+)
+```
+
+See [AWS Bedrock documentation](https://aws.amazon.com/bedrock/) for details.

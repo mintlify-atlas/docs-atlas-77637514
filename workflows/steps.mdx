@@ -1,0 +1,42 @@
+---
+title: "Workflow steps"
+description: "Define steps in your workflow"
+---
+
+Steps are the building blocks of workflows. Each step can be an agent, team, or function.
+
+## Agent steps
+
+```python
+from agno.workflow import Step
+
+step = Step(
+    agent=my_agent,
+    name="Research",
+    input_schema=ResearchInput,
+    output_schema=ResearchOutput
+)
+```
+
+## Function steps
+
+```python
+def process_data(input: dict) -> dict:
+    return {"processed": input["raw"]}
+
+step = Step(
+    function=process_data,
+    name="Process"
+)
+```
+
+## Team steps
+
+```python
+step = Step(
+    team=my_team,
+    name="Collaborate"
+)
+```
+
+See [Workflow API](/api/workflow) for complete documentation.

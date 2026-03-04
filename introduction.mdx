@@ -1,0 +1,128 @@
+---
+title: Introduction to Agno
+description: Build, run, and manage agentic software at scale
+---
+
+## What is Agno?
+
+Agno is the runtime for agentic software. Build agents, teams, and workflows. Run them as scalable services. Monitor and manage them in production.
+
+<CardGroup cols={3}>
+  <Card title="Framework" icon="code">
+    Build agents, teams, and workflows with memory, knowledge, guardrails, and 100+ integrations
+  </Card>
+  <Card title="Runtime" icon="server">
+    Serve your system in production with a stateless, session-scoped FastAPI backend
+  </Card>
+  <Card title="Control Plane" icon="chart-line">
+    Test, monitor, and manage your system using the AgentOS UI
+  </Card>
+</CardGroup>
+
+## Key Features
+
+### Production-Ready Architecture
+
+Agno runs in your infrastructure, not ours:
+
+- **Stateless, horizontally scalable runtime** - Scale to handle millions of users
+- **Per-user and per-session isolation** - Each user gets their own isolated context
+- **50+ APIs and background execution** - REST, WebSocket, scheduled tasks, and more
+- **Native tracing and full auditability** - Every action is logged and traceable
+- **Your data, your rules** - Sessions, memory, knowledge, and traces stored in your database
+
+### Built for the New Software Paradigm
+
+Agentic software introduces three fundamental shifts:
+
+#### 1. A New Interaction Model
+
+Traditional software receives a request and returns a response. Agents stream reasoning, tool calls, and results in real time. They can pause mid-execution, wait for approval, and resume later.
+
+Agno treats streaming and long-running execution as first-class behavior.
+
+#### 2. A New Governance Model
+
+Traditional systems execute predefined decision logic. Agents choose actions dynamically. Some actions are low risk. Some require user approval. Some require administrative authority.
+
+Agno lets you define who decides what as part of the agent definition:
+- Approval workflows
+- Human-in-the-loop
+- Audit logs
+- Enforcement at runtime
+
+#### 3. A New Trust Model
+
+Traditional systems are designed to be predictable. Every execution path is defined in advance. Agents introduce probabilistic reasoning into the execution path.
+
+Agno builds trust into the engine itself:
+- Guardrails run as part of execution
+- Evaluations integrate into the agent loop
+- Traces and audit logs are first-class
+
+## What You Can Build
+
+Agno powers real agentic systems built from the same primitives:
+
+<CardGroup cols={2}>
+  <Card title="Pal" icon="user" href="https://github.com/agno-agi/pal">
+    A personal agent that learns your preferences
+  </Card>
+  <Card title="Dash" icon="chart-mixed" href="https://github.com/agno-agi/dash">
+    A self-learning data agent grounded in six layers of context
+  </Card>
+  <Card title="Scout" icon="magnifying-glass" href="https://github.com/agno-agi/scout">
+    A self-learning context agent that manages enterprise knowledge
+  </Card>
+  <Card title="Gcode" icon="code" href="https://github.com/agno-agi/gcode">
+    A post-IDE coding agent that improves over time
+  </Card>
+  <Card title="Investment Team" icon="briefcase" href="https://github.com/agno-agi/investment-team">
+    A multi-agent investment committee that debates and allocates capital
+  </Card>
+</CardGroup>
+
+Single agents. Coordinated teams. Structured workflows. All built on one architecture.
+
+## Who Should Use Agno?
+
+### For Developers
+
+If you're building agentic applications, Agno provides:
+- A complete framework with batteries included
+- Production-ready infrastructure out of the box
+- 100+ integrations with LLM providers, tools, and databases
+- Real working examples in the [cookbook](https://github.com/agno-agi/agno/tree/main/cookbook)
+
+### For Teams
+
+If you're shipping agentic software to production, Agno gives you:
+- Horizontally scalable architecture
+- Multi-tenancy with per-user isolation
+- Full observability and audit logs
+- Control over data and governance
+
+### For Enterprises
+
+If you need enterprise-grade agentic systems, Agno offers:
+- Self-hosted deployment
+- Fine-grained access controls
+- Approval workflows and compliance
+- Integration with existing infrastructure
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Build and run your first agent in under 5 minutes
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    Install Agno and set up your environment
+  </Card>
+  <Card title="Core Concepts" icon="book" href="/core-concepts">
+    Understand the fundamental building blocks
+  </Card>
+  <Card title="Cookbook" icon="flask" href="https://github.com/agno-agi/agno/tree/main/cookbook">
+    Explore working examples and patterns
+  </Card>
+</CardGroup>

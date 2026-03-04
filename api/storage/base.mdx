@@ -1,0 +1,240 @@
+---
+title: BaseDb
+description: Abstract base class for database integrations
+---
+
+The `BaseDb` class is the abstract base for all database implementations in Agno. It defines the interface for storing sessions, memories, knowledge, metrics, and more.
+
+## Constructor
+
+<ParamField path="session_table" type="str" default="agno_sessions">
+  Name of the table for storing sessions.
+</ParamField>
+
+<ParamField path="memory_table" type="str" default="agno_memories">
+  Name of the table for storing user memories.
+</ParamField>
+
+<ParamField path="knowledge_table" type="str" default="agno_knowledge">
+  Name of the table for storing knowledge content.
+</ParamField>
+
+<ParamField path="metrics_table" type="str" default="agno_metrics">
+  Name of the table for storing metrics.
+</ParamField>
+
+<ParamField path="eval_table" type="str" default="agno_eval_runs">
+  Name of the table for storing evaluation runs.
+</ParamField>
+
+<ParamField path="traces_table" type="str" default="agno_traces">
+  Name of the table for storing traces.
+</ParamField>
+
+<ParamField path="components_table" type="str" default="agno_components">
+  Name of the table for storing component definitions.
+</ParamField>
+
+<ParamField path="learnings_table" type="str" default="agno_learnings">
+  Name of the table for storing learning records.
+</ParamField>
+
+<ParamField path="approvals_table" type="str" default="agno_approvals">
+  Name of the table for storing approval records.
+</ParamField>
+
+<ParamField path="id" type="str" default="None">
+  Unique identifier for the database instance.
+</ParamField>
+
+## Session Methods
+
+### get_session()
+
+Retrieve a session from the database.
+
+```python
+session = db.get_session(
+    session_id="abc123",
+    session_type=SessionType.AGENT,
+    user_id="user_1"
+)
+```
+
+### upsert_session()
+
+Create or update a session.
+
+```python
+db.upsert_session(session)
+```
+
+### delete_session()
+
+Delete a session.
+
+```python
+db.delete_session(session_id="abc123", user_id="user_1")
+```
+
+### get_sessions()
+
+Query sessions with filters.
+
+```python
+sessions = db.get_sessions(
+    session_type=SessionType.AGENT,
+    user_id="user_1",
+    limit=10
+)
+```
+
+## Memory Methods
+
+### get_user_memories()
+
+Retrieve user memories.
+
+```python
+memories = db.get_user_memories(
+    user_id="user_1",
+    limit=10
+)
+```
+
+### upsert_user_memory()
+
+Create or update a memory.
+
+```python
+db.upsert_user_memory(memory)
+```
+
+### delete_user_memory()
+
+Delete a memory.
+
+```python
+db.delete_user_memory(memory_id="mem_123", user_id="user_1")
+```
+
+### clear_memories()
+
+Clear all memories.
+
+```python
+db.clear_memories()
+```
+
+## Knowledge Methods
+
+### get_knowledge_content()
+
+Get a knowledge row.
+
+```python
+row = db.get_knowledge_content(id="doc_123")
+```
+
+### upsert_knowledge_content()
+
+Create or update knowledge content.
+
+```python
+db.upsert_knowledge_content(knowledge_row)
+```
+
+### delete_knowledge_content()
+
+Delete knowledge content.
+
+```python
+db.delete_knowledge_content(id="doc_123")
+```
+
+## Component Methods
+
+### upsert_component()
+
+Create or update a component (agent/team/workflow).
+
+```python
+db.upsert_component(
+    component_id="my_agent",
+    component_type=ComponentType.AGENT,
+    name="My Agent"
+)
+```
+
+### get_config()
+
+Get component configuration.
+
+```python
+config = db.get_config(
+    component_id="my_agent",
+    label="production"
+)
+```
+
+## Trace Methods
+
+### upsert_trace()
+
+Store a trace record.
+
+```python
+db.upsert_trace(trace)
+```
+
+### get_traces()
+
+Query traces with filters.
+
+```python
+traces = db.get_traces(
+    agent_id="my_agent",
+    limit=20
+)
+```
+
+## Example Usage
+
+<CodeGroup>
+```python SQLite
+from agno.db.sqlite import SQLiteDb
+
+db = SQLiteDb(db_file="agent.db")
+```
+
+```python PostgreSQL
+from agno.db.postgres import PostgresDb
+
+db = PostgresDb(
+    host="localhost",
+    port=5432,
+    db="agno",
+    user="user",
+    password="password"
+)
+```
+
+```python With Agent
+from agno import Agent
+from agno.db.sqlite import SQLiteDb
+
+db = SQLiteDb(db_file="agent.db")
+
+agent = Agent(
+    model="gpt-4o",
+    db=db,
+    add_history_to_context=True
+)
+
+response = agent.run("Hello", user_id="user_1")
+
+# Get session
+session = agent.get_session()
+print(session.runs)
+```
+</CodeGroup>

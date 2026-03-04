@@ -1,0 +1,49 @@
+---
+title: "Vector databases"
+description: "Store and search embeddings"
+---
+
+Vector databases store embeddings and enable similarity search.
+
+## PgVector (PostgreSQL)
+
+Recommended for production:
+
+```python
+from agno.vectordb.pgvector import PgVector
+
+vector_db = PgVector(
+    table_name="knowledge",
+    db_url="postgresql://localhost/agno"
+)
+```
+
+## ChromaDB
+
+Good for development:
+
+```python
+from agno.vectordb.chromadb import ChromaDb
+
+vector_db = ChromaDb(
+    collection="docs",
+    path="./chroma_db"
+)
+```
+
+## LanceDB
+
+```python
+from agno.vectordb.lancedb import LanceDb
+
+vector_db = LanceDb(
+    table_name="knowledge",
+    uri="./lancedb"
+)
+```
+
+## Other databases
+
+Supported: Qdrant, Pinecone, Weaviate, Milvus, and more.
+
+See [storage documentation](/storage/databases) for setup.

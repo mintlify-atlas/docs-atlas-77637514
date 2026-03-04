@@ -1,0 +1,45 @@
+---
+title: "Document loaders"
+description: "Load documents from various sources"
+---
+
+Agno supports loading documents from many formats.
+
+## PDF documents
+
+```python
+from agno.knowledge.pdf import PDFKnowledge
+
+knowledge = PDFKnowledge(
+    path="docs/",
+    vector_db=vector_db
+)
+```
+
+## Text files
+
+```python
+from agno.knowledge.text import TextKnowledge
+
+knowledge = TextKnowledge(
+    path="docs/",
+    vector_db=vector_db
+)
+```
+
+## Web pages
+
+```python
+from agno.knowledge.website import WebsiteKnowledge
+
+knowledge = WebsiteKnowledge(
+    urls=["https://docs.agno.com"],
+    vector_db=vector_db
+)
+```
+
+## Custom loaders
+
+Implement the `KnowledgeProtocol` to create custom loaders.
+
+See [API reference](/api/knowledge/protocol) for details.

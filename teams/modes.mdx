@@ -1,0 +1,43 @@
+---
+title: "Team modes"
+description: "Different strategies for coordinating agents"
+---
+
+Agno supports multiple team coordination modes:
+
+## Respond directly
+
+The coordinator agent handles the task or delegates to members.
+
+```python
+from agno.team import Team, TeamMode
+
+team = Team(
+    mode=TeamMode.RESPOND_DIRECTLY,
+    agents=[agent1, agent2]
+)
+```
+
+## Delegate to all
+
+All agents work on the task in parallel.
+
+```python
+team = Team(
+    mode=TeamMode.DELEGATE_TO_ALL,
+    agents=[bull_agent, bear_agent]
+)
+```
+
+## Router mode
+
+The coordinator routes to the best agent for each subtask.
+
+```python
+team = Team(
+    mode=TeamMode.ROUTER,
+    agents=[coder, reviewer, tester]
+)
+```
+
+See [cookbook examples](/cookbook/teams) for complete examples.

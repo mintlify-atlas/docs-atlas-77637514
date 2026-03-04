@@ -1,0 +1,417 @@
+---
+title: User Memories
+description: Create, retrieve, and manage persistent user memories with Agno's MemoryManager
+---
+
+User memories allow your AI agents to remember information about users across sessions, creating personalized experiences that improve over time.
+
+## Automatic Memory Creation
+
+The simplest way to use memories is to enable automatic memory creation on your agent:
+
+```python
+from agno.agent import Agent
+from agno.db.postgres import PostgresDb
+
+agent = Agent(
+    db=PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:5532/ai"),
+    update_memory_on_run=True,
+)
+
+agent.print_response(
+    "My name is John Doe and I like to hike in the mountains on weekends.",
+    user_id="john_doe@example.com"
+)
+```
+
+The agent automatically extracts and stores relevant information:
+- User's name is John Doe
+- User likes hiking in the mountains
+- User hikes on weekends
+
+## Manual Memory Management
+
+For more control, use the `MemoryManager` directly:
+
+### Creating Memories
+
+<CodeGroup>
+
+```python Standalone MemoryManager
+from agno.memory import MemoryManager, UserMemory
+from agno.db.postgres import PostgresDb
+
+memory_manager = MemoryManager(
+    db=PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:5532/ai")
+)
+
+# Add a memory
+memory_id = memory_manager.add_user_memory(
+    memory=UserMemory(
+        memory="The user's name is John Doe",
+        topics=["name"]
+    ),
+    user_id="john_doe@example.com"
+)
+```
+
+```python From Messages
+from agno.models.message import Message
+
+memory_manager.create_user_memories(
+    messages=[
+        Message(role="user", content="My name is John Doe"),
+        Message(role="assistant", content="Nice to meet you, John!")
+    ],
+    user_id="john_doe@example.com"
+)
+```
+
+</CodeGroup>
+
+### Retrieving Memories
+
+<CodeGroup>
+
+```python All Memories
+memories = memory_manager.get_user_memories(
+    user_id="john_doe@example.com"
+)
+
+for memory in memories:
+    print(f"{memory.memory} (Topics: {memory.topics})")
+```
+
+```python Single Memory
+memory = memory_manager.get_user_memory(
+    memory_id="123e4567-e89b-12d3-a456-426614174000",
+    user_id="john_doe@example.com"
+)
+
+if memory:
+    print(memory.memory)
+```
+
+```python Search Memories
+memories = memory_manager.search_user_memories(
+    query="What are the user's hobbies?",
+    user_id="john_doe@example.com",
+    retrieval_method="agentic",
+    limit=5
+)
+```
+
+</CodeGroup>
+
+### Updating Memories
+
+```python
+memory_manager.replace_user_memory(
+    memory_id="123e4567-e89b-12d3-a456-426614174000",
+    memory=UserMemory(
+        memory="The user's name is John Mary Doe",
+        topics=["name"]
+    ),
+    user_id="john_doe@example.com"
+)
+```
+
+### Deleting Memories
+
+<CodeGroup>
+
+```python Delete Single Memory
+memory_manager.delete_user_memory(
+    memory_id="123e4567-e89b-12d3-a456-426614174000",
+    user_id="john_doe@example.com"
+)
+```
+
+```python Clear All User Memories
+memory_manager.clear_user_memories(
+    user_id="john_doe@example.com"
+)
+```
+
+```python Clear All Memories
+memory_manager.clear()
+```
+
+</CodeGroup>
+
+## Memory Retrieval Methods
+
+Control how memories are retrieved from the database:
+
+<Tabs>
+  <Tab title="Last N">
+    Get the most recent memories:
+
+    ```python
+    memories = memory_manager.search_user_memories(
+        user_id="john_doe@example.com",
+        retrieval_method="last_n",
+        limit=10
+    )
+    ```
+  </Tab>
+  <Tab title="First N">
+    Get the oldest memories:
+
+    ```python
+    memories = memory_manager.search_user_memories(
+        user_id="john_doe@example.com",
+        retrieval_method="first_n",
+        limit=10
+    )
+    ```
+  </Tab>
+  <Tab title="Agentic Search">
+    Use an LLM to find semantically relevant memories:
+
+    ```python
+    memories = memory_manager.search_user_memories(
+        query="What foods does the user like?",
+        user_id="john_doe@example.com",
+        retrieval_method="agentic",
+        limit=5
+    )
+    ```
+  </Tab>
+</Tabs>
+
+## Memory Optimization
+
+As memories grow, you may need to optimize them to reduce token usage:
+
+### Summarize Strategy
+
+Combine all memories into a single comprehensive summary:
+
+```python
+from agno.memory.strategies.types import MemoryOptimizationStrategyType
+
+# Before optimization: 15 memories, 1200 tokens
+memories_before = memory_manager.get_user_memories(
+    user_id="john_doe@example.com"
+)
+
+# Optimize
+memory_manager.optimize_memories(
+    user_id="john_doe@example.com",
+    strategy=MemoryOptimizationStrategyType.SUMMARIZE,
+    apply=True  # Automatically replace memories in database
+)
+
+# After optimization: 1 memory, 300 tokens
+memories_after = memory_manager.get_user_memories(
+    user_id="john_doe@example.com"
+)
+```
+
+### Custom Optimization Strategy
+
+Create your own optimization strategy:
+
+```python
+from agno.memory.strategies import MemoryOptimizationStrategy
+from agno.db.schemas import UserMemory
+from typing import List
+
+class CustomStrategy(MemoryOptimizationStrategy):
+    def optimize(
+        self,
+        memories: List[UserMemory],
+        model,
+    ) -> List[UserMemory]:
+        # Your custom optimization logic
+        # For example: group by topic, remove duplicates, etc.
+        return optimized_memories
+
+# Use custom strategy
+custom_strategy = CustomStrategy()
+memory_manager.optimize_memories(
+    user_id="john_doe@example.com",
+    strategy=custom_strategy,
+    apply=True
+)
+```
+
+## Custom Memory Instructions
+
+Control what information gets captured as memories:
+
+```python
+from textwrap import dedent
+
+memory_manager = MemoryManager(
+    db=db,
+    memory_capture_instructions=dedent("""
+        Capture the following information as memories:
+        - User's name and personal details
+        - Professional information (job, company, industry)
+        - Preferences and interests
+        - Important dates and events
+        - Goals and objectives
+        
+        Do NOT capture:
+        - Temporary information (weather, time)
+        - Transactional data (order IDs, payment info)
+        - Sensitive information (passwords, SSN)
+    """)
+)
+```
+
+## Multi-Session Memory
+
+Memories persist across sessions for the same user:
+
+```python
+from uuid import uuid4
+
+user_id = "john_doe@example.com"
+
+# Session 1
+agent.print_response(
+    "My name is John and I like pizza",
+    user_id=user_id,
+    session_id=str(uuid4())
+)
+
+# Session 2 (different session, same user)
+agent.print_response(
+    "What food do I like?",  # Agent remembers: "You like pizza"
+    user_id=user_id,
+    session_id=str(uuid4())
+)
+```
+
+## Sharing Memories Between Agents
+
+Multiple agents can share the same memory database:
+
+```python
+db = PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:5532/ai")
+
+agent1 = Agent(name="Sales Agent", db=db, update_memory_on_run=True)
+agent2 = Agent(name="Support Agent", db=db, update_memory_on_run=True)
+
+# Agent 1 creates memories
+agent1.print_response(
+    "I'm interested in your premium plan",
+    user_id="john@example.com"
+)
+
+# Agent 2 can access the same memories
+agent2.print_response(
+    "What plan is the user interested in?",  # Knows about premium plan
+    user_id="john@example.com"
+)
+```
+
+## Async Operations
+
+All memory operations have async variants:
+
+```python
+import asyncio
+
+async def manage_memories():
+    # Get memories
+    memories = await memory_manager.aget_user_memories(
+        user_id="john_doe@example.com"
+    )
+    
+    # Create memories
+    await memory_manager.acreate_user_memories(
+        message="My favorite color is blue",
+        user_id="john_doe@example.com"
+    )
+    
+    # Optimize memories
+    await memory_manager.aoptimize_memories(
+        user_id="john_doe@example.com",
+        strategy=MemoryOptimizationStrategyType.SUMMARIZE
+    )
+
+asyncio.run(manage_memories())
+```
+
+<Note>
+When using async databases like `AsyncPostgresDb`, you must use the async variants of memory methods.
+</Note>
+
+## UserMemory Schema
+
+The `UserMemory` object has the following fields:
+
+```python
+class UserMemory:
+    memory_id: Optional[str]        # Unique identifier
+    memory: str                     # The actual memory text
+    user_id: Optional[str]          # User this memory belongs to
+    agent_id: Optional[str]         # Agent that created the memory
+    team_id: Optional[str]          # Team that created the memory
+    topics: Optional[List[str]]     # Categories/tags
+    updated_at: Optional[int]       # Unix timestamp
+```
+
+## Best Practices
+
+<Warning>
+**Important**: Always use the same `user_id` for the same user across sessions. This ensures their memories persist correctly.
+</Warning>
+
+1. **Use descriptive topics**: Help organize and retrieve memories more effectively
+2. **Optimize regularly**: If you have many memories, optimize periodically to reduce token usage
+3. **Custom instructions**: Define clear memory capture instructions for your use case
+4. **User privacy**: Implement proper data retention policies and allow users to delete their memories
+5. **Test retrieval**: Verify that memories are being retrieved correctly in your agent's context
+
+## Example: Multi-User Chat
+
+Complete example with multiple users and sessions:
+
+```python libs/agno/agno/memory/manager.py:368
+import asyncio
+from agno.agent import Agent
+from agno.db.postgres import PostgresDb
+
+db = PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:5532/ai")
+agent = Agent(db=db, update_memory_on_run=True)
+
+async def multi_user_chat():
+    # User 1
+    await agent.aprint_response(
+        "My name is Alice and I like anime",
+        user_id="alice@example.com",
+        session_id="session_1"
+    )
+    
+    # User 2
+    await agent.aprint_response(
+        "My name is Bob and I like hiking",
+        user_id="bob@example.com",
+        session_id="session_2"
+    )
+    
+    # User 1 in new session - agent remembers
+    await agent.aprint_response(
+        "What do I like?",  # Response: "You like anime"
+        user_id="alice@example.com",
+        session_id="session_3"
+    )
+
+asyncio.run(multi_user_chat())
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Session State" icon="messages" href="/memory/session-state">
+    Manage conversation history and session summaries
+  </Card>
+  <Card title="Database Setup" icon="database" href="/storage/databases">
+    Configure your database for memory storage
+  </Card>
+</CardGroup>

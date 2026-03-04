@@ -1,0 +1,494 @@
+---
+title: Evaluations Overview
+description: Measure and improve agent performance with systematic testing
+---
+
+Evaluations (evals) enable you to systematically test agent performance, measure quality, and track improvements over time. Agno provides multiple evaluation frameworks for different aspects of agent behavior.
+
+## Why Evaluate?
+
+Evaluations help you:
+
+- **Measure Quality**: Quantify agent accuracy and reliability
+- **Catch Regressions**: Detect when changes degrade performance
+- **Compare Approaches**: Test different models, prompts, or configurations
+- **Track Improvements**: Monitor performance over time
+- **Build Confidence**: Ensure production readiness
+
+## Types of Evaluations
+
+Agno provides several evaluation frameworks:
+
+<CardGroup cols={2}>
+  <Card title="Accuracy" icon="bullseye">
+    Measure how well agent output matches expected answers
+  </Card>
+  <Card title="Agent-as-Judge" icon="gavel">
+    Use an LLM to evaluate response quality and correctness
+  </Card>
+  <Card title="Performance" icon="gauge-high">
+    Track speed, token usage, and resource consumption
+  </Card>
+  <Card title="Reliability" icon="circle-check">
+    Measure consistency and error rates across runs
+  </Card>
+</CardGroup>
+
+## Quick Start: Accuracy Evaluation
+
+Test if your agent produces correct answers:
+
+```python
+from agno.agent import Agent
+from agno.eval import AccuracyEval
+from agno.models.openai import OpenAIResponses
+from agno.db.sqlite import SqliteDb
+
+# Agent to evaluate
+agent = Agent(
+    name="Math Tutor",
+    model=OpenAIResponses(id="gpt-5-mini"),
+    description="A helpful math tutor",
+)
+
+# Create evaluation
+eval_test = AccuracyEval(
+    agent=agent,
+    input="What is 25 * 4?",
+    expected_output="100",
+    num_iterations=3,  # Run 3 times
+    db=SqliteDb(db_file="tmp/evals.db"),
+)
+
+# Run evaluation
+result = eval_test.run()
+
+# Results
+print(f"Average Score: {result.avg_score}/10")
+print(f"Min Score: {result.min_score}")
+print(f"Max Score: {result.max_score}")
+```
+
+Output:
+```
+Results:
+  Input: What is 25 * 4?
+  Output: 25 * 4 = 100
+  Expected: 100
+  Score: 10/10
+  Reason: The answer is completely accurate
+
+Summary:
+  Average Score: 9.67/10
+  Min Score: 9
+  Max Score: 10
+```
+
+## Accuracy Evaluation
+
+### Basic Usage
+
+```python
+from agno.eval import AccuracyEval
+
+eval_test = AccuracyEval(
+    agent=agent,
+    input="What is the capital of France?",
+    expected_output="Paris",
+    num_iterations=5,
+)
+
+result = eval_test.run(
+    print_summary=True,
+    print_results=True,
+)
+```
+
+### Custom Evaluator
+
+Customize the judging criteria:
+
+```python
+from agno.agent import Agent
+
+# Custom evaluator agent
+evaluator = Agent(
+    model=OpenAIResponses(id="o4-mini"),
+    description="Expert code reviewer",
+    output_schema=AccuracyAgentResponse,
+)
+
+eval_test = AccuracyEval(
+    agent=coding_agent,
+    input="Write a function to reverse a string",
+    expected_output="def reverse(s): return s[::-1]",
+    evaluator_agent=evaluator,
+    additional_guidelines=[
+        "Code must be syntactically correct",
+        "Solution should be efficient",
+        "Include proper naming conventions",
+    ],
+)
+```
+
+### Dynamic Test Cases
+
+Use callables for dynamic inputs:
+
+```python
+import random
+
+def generate_math_problem():
+    a = random.randint(1, 100)
+    b = random.randint(1, 100)
+    return f"What is {a} + {b}?"
+
+def generate_expected_answer():
+    # Called after input generation
+    return str(eval(eval_test.input.replace("What is ", "").replace("?", "")))
+
+eval_test = AccuracyEval(
+    agent=agent,
+    input=generate_math_problem,
+    expected_output=generate_expected_answer,
+    num_iterations=10,
+)
+```
+
+### Batch Testing
+
+Test multiple cases:
+
+```python
+test_cases = [
+    {
+        "input": "What is 2 + 2?",
+        "expected": "4",
+    },
+    {
+        "input": "What is the square root of 144?",
+        "expected": "12",
+    },
+    {
+        "input": "What is 15% of 200?",
+        "expected": "30",
+    },
+]
+
+results = []
+for test_case in test_cases:
+    eval_test = AccuracyEval(
+        agent=agent,
+        input=test_case["input"],
+        expected_output=test_case["expected"],
+        num_iterations=1,
+    )
+    result = eval_test.run(print_summary=False)
+    results.append(result)
+
+# Aggregate results
+avg_score = sum(r.avg_score for r in results) / len(results)
+print(f"Overall Average: {avg_score}/10")
+```
+
+## Agent-as-Judge Evaluation
+
+Use an LLM to evaluate response quality:
+
+```python
+from agno.eval import AgentAsJudgeEval
+
+eval_test = AgentAsJudgeEval(
+    agent=agent,
+    input="Explain quantum entanglement",
+    criteria=[
+        "Accuracy: Is the explanation scientifically correct?",
+        "Clarity: Is it easy to understand for a general audience?",
+        "Completeness: Does it cover the key concepts?",
+    ],
+    num_iterations=3,
+)
+
+result = eval_test.run()
+print(f"Overall Score: {result.avg_score}/10")
+for criterion, score in result.criterion_scores.items():
+    print(f"{criterion}: {score}/10")
+```
+
+## Performance Evaluation
+
+Measure speed and resource usage:
+
+```python
+from agno.eval import PerformanceEval
+
+eval_test = PerformanceEval(
+    agent=agent,
+    input="Analyze this document",
+    num_iterations=10,
+    max_response_time_seconds=5.0,  # Fail if slower
+    max_tokens=1000,                # Fail if using too many tokens
+)
+
+result = eval_test.run()
+
+print(f"Average Response Time: {result.avg_response_time:.2f}s")
+print(f"Average Tokens: {result.avg_total_tokens}")
+print(f"P95 Response Time: {result.p95_response_time:.2f}s")
+```
+
+## Reliability Evaluation
+
+Test consistency and error handling:
+
+```python
+from agno.eval import ReliabilityEval
+
+eval_test = ReliabilityEval(
+    agent=agent,
+    inputs=[
+        "Normal query",
+        "Edge case with special chars: @#$%",
+        "Very long input " * 100,
+        "Empty response test",
+    ],
+    num_iterations=5,
+)
+
+result = eval_test.run()
+
+print(f"Success Rate: {result.success_rate * 100}%")
+print(f"Error Rate: {result.error_rate * 100}%")
+print(f"Consistency Score: {result.consistency_score}/10")
+```
+
+## Storing Results
+
+Persist evaluation results in database:
+
+```python
+from agno.db.sqlite import SqliteDb
+
+db = SqliteDb(
+    db_file="tmp/evals.db",
+    evals_table="evaluations",
+)
+
+eval_test = AccuracyEval(
+    agent=agent,
+    input="Test question",
+    expected_output="Expected answer",
+    name="Math Accuracy Test",  # Name for tracking
+    db=db,  # Store results
+)
+
+result = eval_test.run()
+
+# Results are automatically saved to database
+# Query later for analysis
+```
+
+## Comparing Configurations
+
+Compare different agent setups:
+
+```python
+from agno.models.openai import OpenAIChat
+
+# Test different models
+models_to_test = [
+    ("gpt-4", OpenAIChat(id="gpt-4")),
+    ("gpt-5-mini", OpenAIResponses(id="gpt-5-mini")),
+    ("o1", OpenAIChat(id="o1")),
+]
+
+test_input = "Explain the theory of relativity"
+test_output = "E=mc² describes mass-energy equivalence..."
+
+results = {}
+for model_name, model in models_to_test:
+    agent = Agent(
+        name=f"Agent-{model_name}",
+        model=model,
+    )
+    
+    eval_test = AccuracyEval(
+        agent=agent,
+        input=test_input,
+        expected_output=test_output,
+        name=f"Test-{model_name}",
+        num_iterations=3,
+    )
+    
+    result = eval_test.run(print_summary=False)
+    results[model_name] = result.avg_score
+
+# Compare results
+for model_name, score in sorted(results.items(), key=lambda x: x[1], reverse=True):
+    print(f"{model_name}: {score}/10")
+```
+
+## Regression Testing
+
+Detect performance degradation:
+
+```python
+import json
+
+# Baseline results
+baseline_file = "baseline_scores.json"
+
+# Run evaluation
+eval_test = AccuracyEval(
+    agent=agent,
+    input="Test query",
+    expected_output="Expected result",
+    num_iterations=5,
+)
+
+result = eval_test.run(print_summary=False)
+
+# Load baseline
+try:
+    with open(baseline_file, 'r') as f:
+        baseline = json.load(f)
+    
+    # Compare
+    score_diff = result.avg_score - baseline['avg_score']
+    
+    if score_diff < -1.0:  # Significant regression
+        print(f"WARNING: Performance regression detected!")
+        print(f"Current: {result.avg_score}")
+        print(f"Baseline: {baseline['avg_score']}")
+        print(f"Diff: {score_diff}")
+        raise Exception("Regression test failed")
+    else:
+        print(f"Performance maintained or improved: {score_diff:+.2f}")
+        
+except FileNotFoundError:
+    # Create new baseline
+    with open(baseline_file, 'w') as f:
+        json.dump({
+            'avg_score': result.avg_score,
+            'std_dev': result.std_dev_score,
+        }, f)
+    print("Baseline created")
+```
+
+## Async Evaluation
+
+Run evaluations asynchronously:
+
+```python
+import asyncio
+
+async def run_evaluation():
+    eval_test = AccuracyEval(
+        agent=agent,
+        input="Async test question",
+        expected_output="Expected answer",
+        num_iterations=5,
+    )
+    
+    result = await eval_test.arun(
+        print_summary=True,
+        print_results=False,
+    )
+    
+    return result
+
+# Run async
+result = asyncio.run(run_evaluation())
+```
+
+## CI/CD Integration
+
+Integrate evals into your pipeline:
+
+```python
+# test_agent.py
+import sys
+from agno.eval import AccuracyEval
+
+def test_agent_accuracy():
+    eval_test = AccuracyEval(
+        agent=agent,
+        input="Test input",
+        expected_output="Expected output",
+        num_iterations=5,
+    )
+    
+    result = eval_test.run(print_summary=True)
+    
+    # Fail CI if score is too low
+    if result.avg_score < 8.0:
+        print(f"FAIL: Score {result.avg_score} below threshold 8.0")
+        sys.exit(1)
+    
+    print(f"PASS: Score {result.avg_score} meets threshold")
+
+if __name__ == "__main__":
+    test_agent_accuracy()
+```
+
+Run in CI:
+```bash
+python test_agent.py || exit 1
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Representative Tests" icon="bullseye">
+    Use test cases that reflect real usage patterns
+  </Card>
+  <Card title="Multiple Iterations" icon="arrows-rotate">
+    Run multiple times to account for non-determinism
+  </Card>
+  <Card title="Track Over Time" icon="chart-line">
+    Store results in database to monitor trends
+  </Card>
+  <Card title="Automate Testing" icon="robot">
+    Integrate evals into CI/CD pipeline
+  </Card>
+</CardGroup>
+
+## Evaluation Schema
+
+Accuracy evaluation results:
+
+```python
+from agno.eval import AccuracyResult, AccuracyEvaluation
+
+class AccuracyEvaluation:
+    input: str           # Test input
+    output: str          # Agent output
+    expected_output: str # Expected output
+    score: int           # Score 1-10
+    reason: str          # Reasoning for score
+
+class AccuracyResult:
+    results: List[AccuracyEvaluation]
+    avg_score: float     # Average score
+    mean_score: float    # Mean score  
+    min_score: float     # Minimum score
+    max_score: float     # Maximum score
+    std_dev_score: float # Standard deviation
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Tracing" icon="route" href="/tracing/overview">
+    Monitor agent execution in detail
+  </Card>
+  <Card title="Learning" icon="brain" href="/learning/overview">
+    Use eval results to improve agents
+  </Card>
+  <Card title="Guardrails" icon="shield" href="/guardrails/overview">
+    Test safety and validation mechanisms
+  </Card>
+  <Card title="Reasoning" icon="brain" href="/reasoning/overview">
+    Evaluate reasoning quality
+  </Card>
+</CardGroup>

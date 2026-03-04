@@ -1,0 +1,274 @@
+---
+title: Workflow
+description: Build structured multi-step AI workflows
+---
+
+The `Workflow` class enables you to build structured, multi-step AI workflows with agents, teams, or custom functions. Workflows provide explicit control over execution flow with support for loops, conditionals, parallel execution, and human-in-the-loop interactions.
+
+## Constructor
+
+```python
+from agno import Workflow
+
+workflow = Workflow(
+    name="data_pipeline",
+    steps=[
+        extract_step,
+        transform_step,
+        load_step
+    ]
+)
+```
+
+## Core Parameters
+
+<ParamField path="name" type="str" default="None">
+  A descriptive name for the workflow.
+</ParamField>
+
+<ParamField path="id" type="str" default="None">
+  Unique identifier for the workflow. Auto-generated if not provided.
+</ParamField>
+
+<ParamField path="description" type="str" default="None">
+  A description of what the workflow does.
+</ParamField>
+
+<ParamField path="steps" type="WorkflowSteps" default="None">
+  The steps to execute in the workflow. Can be a callable, Steps object, or list of Step objects.
+</ParamField>
+
+## Database
+
+<ParamField path="db" type="BaseDb | AsyncBaseDb" default="None">
+  Database for storing workflow sessions and run history.
+</ParamField>
+
+## Session & State
+
+<ParamField path="session_id" type="str" default="None">
+  Default session ID for the workflow.
+</ParamField>
+
+<ParamField path="user_id" type="str" default="None">
+  Default user ID for the workflow.
+</ParamField>
+
+<ParamField path="session_state" type="Dict[str, Any]" default="None">
+  Session state stored in database to persist across runs.
+</ParamField>
+
+<ParamField path="overwrite_db_session_state" type="bool" default="False">
+  If True, overwrites stored session_state with provided session_state.
+</ParamField>
+
+## History
+
+<ParamField path="add_workflow_history_to_steps" type="bool" default="False">
+  If True, adds workflow history to step executors.
+</ParamField>
+
+<ParamField path="num_history_runs" type="int" default="3">
+  Number of historical runs to include in messages.
+</ParamField>
+
+## Streaming
+
+<ParamField path="stream" type="bool" default="None">
+  Stream the response from the workflow.
+</ParamField>
+
+<ParamField path="stream_events" type="bool" default="False">
+  Stream intermediate step events.
+</ParamField>
+
+<ParamField path="stream_executor_events" type="bool" default="True">
+  Stream events from executors (agents/teams) within steps.
+</ParamField>
+
+## Storage
+
+<ParamField path="store_events" type="bool" default="False">
+  Persist events on the run response.
+</ParamField>
+
+<ParamField path="store_executor_outputs" type="bool" default="True">
+  Store executor responses (agent/team responses) in flattened runs.
+</ParamField>
+
+<ParamField path="events_to_skip" type="List[WorkflowRunEvent | RunEvent | TeamRunEvent]" default="None">
+  Events to skip when persisting.
+</ParamField>
+
+## Validation
+
+<ParamField path="input_schema" type="Type[BaseModel]" default="None">
+  Pydantic model to validate workflow input.
+</ParamField>
+
+<ParamField path="metadata" type="Dict[str, Any]" default="None">
+  Metadata stored with the workflow.
+</ParamField>
+
+## Methods
+
+### run()
+
+Execute the workflow.
+
+```python
+result = workflow.run(message="Process this data")
+print(result.content)
+```
+
+**Parameters:**
+
+- `message` (str): The input message (if workflow uses default parameters)
+- Or pass custom parameters matching your workflow definition
+- `stream` (bool): Whether to stream the response
+- `session_id` (str): Optional session ID
+- `user_id` (str): Optional user ID
+
+**Returns:** `WorkflowRunOutput` or Iterator of events if streaming
+
+### arun()
+
+Async version of `run()`.
+
+```python
+result = await workflow.arun(message="Process this data")
+```
+
+### continue_run()
+
+Continue a paused workflow run (for HITL scenarios).
+
+```python
+# Initial run that pauses for approval
+result = workflow.run(message="Execute trade")
+
+if result.requirements:
+    # ... handle requirements ...
+    # Continue execution
+    final_result = workflow.continue_run(result)
+```
+
+### save()
+
+Save the workflow configuration.
+
+```python
+workflow.save(db=db, stage="published")
+```
+
+### load()
+
+Load a workflow from the database.
+
+```python
+workflow = Workflow.load(id="my_workflow", db=db)
+```
+
+### get_session()
+
+Retrieve a workflow session.
+
+```python
+session = workflow.get_session(session_id="abc123")
+```
+
+## Example Usage
+
+<CodeGroup>
+```python Basic Workflow
+from agno import Agent, Workflow
+from agno.workflow import Step
+
+researcher = Agent(name="Researcher")
+writer = Agent(name="Writer")
+
+workflow = Workflow(
+    name="content_creation",
+    steps=[
+        Step(agent=researcher, name="research"),
+        Step(agent=writer, name="write")
+    ]
+)
+
+result = workflow.run(message="Write about AI")
+```
+
+```python Conditional Workflow
+from agno import Workflow
+from agno.workflow import Step, Condition
+
+def needs_approval(step_output):
+    return step_output.get("amount", 0) > 1000
+
+workflow = Workflow(
+    name="payment_flow",
+    steps=[
+        Step(name="process", agent=processor),
+        Condition(
+            condition=needs_approval,
+            if_true=Step(name="approve", agent=approver),
+            if_false=Step(name="auto_complete", agent=completer)
+        )
+    ]
+)
+```
+
+```python Parallel Workflow
+from agno import Workflow
+from agno.workflow import Parallel, Step
+
+workflow = Workflow(
+    name="multi_source_research",
+    steps=[
+        Parallel(
+            steps=[
+                Step(name="web", agent=web_researcher),
+                Step(name="db", agent=db_researcher),
+                Step(name="api", agent=api_researcher)
+            ]
+        ),
+        Step(name="synthesize", agent=synthesizer)
+    ]
+)
+
+result = workflow.run(message="Research topic")
+```
+
+```python Custom Function Steps
+from agno import Workflow
+from agno.workflow import Step
+from agno.workflow.types import StepInput, StepOutput
+
+def extract_data(input: StepInput) -> StepOutput:
+    data = {"items": [1, 2, 3]}
+    return StepOutput(
+        step_name="extract",
+        step_id="extract_1",
+        content=data,
+        success=True
+    )
+
+def transform_data(input: StepInput) -> StepOutput:
+    items = input.get("extract", {}).get("items", [])
+    transformed = [x * 2 for x in items]
+    return StepOutput(
+        step_name="transform",
+        step_id="transform_1",
+        content={"transformed": transformed},
+        success=True
+    )
+
+workflow = Workflow(
+    name="etl_pipeline",
+    steps=[
+        Step(function=extract_data),
+        Step(function=transform_data)
+    ]
+)
+```
+</CodeGroup>

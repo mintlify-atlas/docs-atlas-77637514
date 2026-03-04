@@ -1,0 +1,212 @@
+---
+title: Function
+description: Represents a callable tool that agents can use
+---
+
+The `Function` class represents a tool that can be called by an agent. It includes the function definition, parameters, hooks, and execution logic.
+
+## Core Fields
+
+<ParamField path="name" type="str" required>
+  Name of the function (must be a-z, A-Z, 0-9, underscores, or dashes, max 64 chars).
+</ParamField>
+
+<ParamField path="description" type="str" default="None">
+  Description of what the function does, used by the model to choose when to call it.
+</ParamField>
+
+<ParamField path="parameters" type="Dict[str, Any]">
+  JSON Schema object describing function parameters.
+</ParamField>
+
+<ParamField path="strict" type="bool" default="None">
+  Enable strict schema validation (for structured outputs).
+</ParamField>
+
+<ParamField path="entrypoint" type="Callable" default="None">
+  The actual function to be called.
+</ParamField>
+
+## Instructions
+
+<ParamField path="instructions" type="str" default="None">
+  Additional instructions for using the function.
+</ParamField>
+
+<ParamField path="add_instructions" type="bool" default="True">
+  If True, adds instructions to the agent's system message.
+</ParamField>
+
+## Display & Control
+
+<ParamField path="show_result" type="bool" default="False">
+  If True, the function call result is shown along with sending it to the model.
+</ParamField>
+
+<ParamField path="stop_after_tool_call" type="bool" default="False">
+  If True, the agent stops after executing this function.
+</ParamField>
+
+## Hooks
+
+<ParamField path="pre_hook" type="Callable" default="None">
+  Hook that runs before the function is executed.
+</ParamField>
+
+<ParamField path="post_hook" type="Callable" default="None">
+  Hook that runs after the function is executed (success or failure).
+</ParamField>
+
+<ParamField path="tool_hooks" type="List[Callable]" default="None">
+  List of hooks to run around tool calls as middleware.
+</ParamField>
+
+## HITL (Human-in-the-Loop)
+
+<ParamField path="requires_confirmation" type="bool" default="None">
+  If True, requires user confirmation before execution.
+</ParamField>
+
+<ParamField path="requires_user_input" type="bool" default="None">
+  If True, requires user input before execution.
+</ParamField>
+
+<ParamField path="user_input_fields" type="List[str]" default="None">
+  List of fields that should be provided by the user.
+</ParamField>
+
+<ParamField path="external_execution" type="bool" default="None">
+  If True, the function will be executed outside the agent's control.
+</ParamField>
+
+<ParamField path="approval_type" type="str" default="None">
+  Approval type: "required" (blocking) or "audit" (non-blocking).
+</ParamField>
+
+## Caching
+
+<ParamField path="cache_results" type="bool" default="False">
+  Enable result caching.
+</ParamField>
+
+<ParamField path="cache_dir" type="str" default="None">
+  Directory to store cache files.
+</ParamField>
+
+<ParamField path="cache_ttl" type="int" default="3600">
+  Cache time-to-live in seconds.
+</ParamField>
+
+## Methods
+
+### from_callable()
+
+Create a Function from a callable.
+
+```python
+from agno.tools.function import Function
+
+def my_tool(query: str) -> str:
+    """Search for information."""
+    return f"Results for {query}"
+
+func = Function.from_callable(my_tool)
+```
+
+### to_dict()
+
+Serialize function to dictionary.
+
+```python
+data = function.to_dict()
+```
+
+### from_dict()
+
+Deserialize function from dictionary.
+
+```python
+function = Function.from_dict(data)
+```
+
+## FunctionCall
+
+Represents an instance of a function being called.
+
+### Methods
+
+#### execute()
+
+Execute the function call synchronously.
+
+```python
+result = function_call.execute()
+```
+
+#### aexecute()
+
+Execute the function call asynchronously.
+
+```python
+result = await function_call.aexecute()
+```
+
+## Example Usage
+
+<CodeGroup>
+```python Basic Function
+from agno.tools.function import Function
+
+def get_weather(city: str) -> str:
+    """Get the weather for a city.
+    
+    Args:
+        city: The name of the city
+    """
+    return f"Weather in {city}: Sunny, 72°F"
+
+func = Function.from_callable(get_weather)
+```
+
+```python With Confirmation
+def delete_file(path: str) -> str:
+    """Delete a file from disk."""
+    os.remove(path)
+    return f"Deleted {path}"
+
+func = Function.from_callable(delete_file)
+func.requires_confirmation = True
+```
+
+```python With Hooks
+def log_start(fc):
+    print(f"Starting: {fc.function.name}")
+
+def log_end(fc):
+    print(f"Completed: {fc.function.name}")
+
+func = Function.from_callable(my_tool)
+func.pre_hook = log_start
+func.post_hook = log_end
+```
+
+```python With Caching
+func = Function.from_callable(expensive_api_call)
+func.cache_results = True
+func.cache_ttl = 3600  # 1 hour
+```
+
+```python With Agent Context
+def search_knowledge(query: str, agent: Agent) -> str:
+    """Search the agent's knowledge base.
+    
+    Args:
+        query: Search query
+        agent: The agent instance (injected automatically)
+    """
+    results = agent.knowledge.search(query)
+    return str(results)
+
+func = Function.from_callable(search_knowledge)
+```
+</CodeGroup>

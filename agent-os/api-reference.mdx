@@ -1,0 +1,739 @@
+---
+title: API Reference
+description: Complete reference for all AgentOS REST API endpoints
+---
+
+AgentOS automatically generates RESTful API endpoints for all your agents, teams, and workflows. This reference covers all available endpoints, request/response formats, and examples.
+
+## Base URL
+
+All API endpoints are relative to your AgentOS server:
+
+```
+http://localhost:7777
+```
+
+In production, replace with your actual domain:
+
+```
+https://api.yourdomain.com
+```
+
+## Authentication
+
+All endpoints (except `/health`) require authentication when security is enabled:
+
+```bash
+curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  http://localhost:7777/agents
+```
+
+See the [Authentication Guide](/agent-os/authentication) for details on JWT tokens and RBAC.
+
+## Core Endpoints
+
+### Get Configuration
+
+Retrieve the complete AgentOS configuration.
+
+<ParamField path="GET /config" type="endpoint">
+  Returns OS configuration including available models, databases, agents, teams, workflows, and domain settings.
+</ParamField>
+
+**Required Scopes:** `system:read`
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:7777/config
+```
+
+```python Python
+import requests
+
+response = requests.get("http://localhost:7777/config")
+config = response.json()
+print(config)
+```
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "id": "my-agent-os",
+  "description": "Production AI Assistant",
+  "available_models": ["gpt-4o", "gpt-4.1"],
+  "databases": ["9c884dc4-9066-448c-9074-ef49ec7eb73c"],
+  "agents": [
+    {
+      "id": "research-agent",
+      "name": "Research Agent",
+      "model": "openai:gpt-4o"
+    }
+  ],
+  "teams": [
+    {
+      "id": "research-team",
+      "name": "Research Team"
+    }
+  ],
+  "workflows": [],
+  "session": {
+    "dbs": [
+      {
+        "db_id": "9c884dc4-9066-448c-9074-ef49ec7eb73c",
+        "domain_config": {"display_name": "Sessions"}
+      }
+    ]
+  },
+  "knowledge": {
+    "knowledge_instances": [
+      {
+        "id": "agno_docs",
+        "name": "Agno Docs",
+        "db_id": "9c884dc4-9066-448c-9074-ef49ec7eb73c"
+      }
+    ]
+  }
+}
+```
+
+### Health Check
+
+Check if the AgentOS is running and healthy.
+
+<ParamField path="GET /health" type="endpoint">
+  Returns health status. No authentication required.
+</ParamField>
+
+**Required Scopes:** None (public endpoint)
+
+```bash
+curl http://localhost:7777/health
+```
+
+**Response:**
+
+```json
+{
+  "status": "healthy"
+}
+```
+
+## Agent Endpoints
+
+### List Agents
+
+Get all available agents (filtered by user permissions).
+
+<ParamField path="GET /agents" type="endpoint">
+  Returns list of agents the authenticated user has access to.
+</ParamField>
+
+**Required Scopes:** `agents:read`
+
+```bash
+curl http://localhost:7777/agents
+```
+
+**Response:**
+
+```json
+{
+  "agents": [
+    {
+      "id": "research-agent",
+      "name": "Research Agent",
+      "description": "Agent for web research",
+      "model": "openai:gpt-4o",
+      "tools": ["WebSearchTools"],
+      "has_knowledge": true,
+      "has_memory": true
+    }
+  ]
+}
+```
+
+### Get Agent Details
+
+Retrieve detailed information about a specific agent.
+
+<ParamField path="GET /agents/{agent_id}" type="endpoint">
+  Returns complete agent configuration and capabilities.
+</ParamField>
+
+**Path Parameters:**
+- `agent_id` (string, required) - The unique identifier of the agent
+
+**Required Scopes:** `agents:read` or `agents:{agent_id}:read`
+
+```bash
+curl http://localhost:7777/agents/research-agent
+```
+
+### Run Agent
+
+Execute an agent with a message.
+
+<ParamField path="POST /agents/{agent_id}/runs" type="endpoint">
+  Creates a new agent run with the provided message and optional media.
+</ParamField>
+
+**Path Parameters:**
+- `agent_id` (string, required) - The unique identifier of the agent
+
+**Form Data Parameters:**
+
+<ParamField body="message" type="string" required>
+  The input message or prompt for the agent
+</ParamField>
+
+<ParamField body="session_id" type="string">
+  Session ID for conversation continuity. If not provided, a new session is created.
+</ParamField>
+
+<ParamField body="user_id" type="string">
+  User identifier for tracking and personalization
+</ParamField>
+
+<ParamField body="stream" type="boolean" default="false">
+  Enable streaming responses via Server-Sent Events (SSE)
+</ParamField>
+
+<ParamField body="images" type="file[]">
+  Image files to include in the request
+</ParamField>
+
+<ParamField body="audio" type="file[]">
+  Audio files to include in the request
+</ParamField>
+
+<ParamField body="videos" type="file[]">
+  Video files to include in the request
+</ParamField>
+
+<ParamField body="files" type="file[]">
+  Document files to include in the request
+</ParamField>
+
+**Required Scopes:** `agents:run` or `agents:{agent_id}:run`
+
+<CodeGroup>
+```bash Basic Run
+curl -X POST http://localhost:7777/agents/research-agent/runs \
+  -F "message=What is quantum computing?"
+```
+
+```bash With Session
+curl -X POST http://localhost:7777/agents/research-agent/runs \
+  -F "message=Tell me more about that" \
+  -F "session_id=user-123-session" \
+  -F "user_id=user-123"
+```
+
+```bash With Image
+curl -X POST http://localhost:7777/agents/research-agent/runs \
+  -F "message=What's in this image?" \
+  -F "images=@photo.jpg"
+```
+
+```bash Streaming
+curl -X POST http://localhost:7777/agents/research-agent/runs \
+  -F "message=Explain AI" \
+  -F "stream=true" \
+  -N  # Enable streaming
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "http://localhost:7777/agents/research-agent/runs",
+    files={
+        "message": (None, "What is quantum computing?"),
+        "session_id": (None, "user-123-session"),
+        "user_id": (None, "user-123"),
+    }
+)
+
+result = response.json()
+print(result["content"])
+```
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "run_id": "run_abc123",
+  "session_id": "session_xyz789",
+  "agent_id": "research-agent",
+  "content": "Quantum computing is a type of computing that uses quantum-mechanical phenomena...",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is quantum computing?"
+    },
+    {
+      "role": "assistant",
+      "content": "Quantum computing is..."
+    }
+  ],
+  "metrics": {
+    "time": 2.5,
+    "input_tokens": 12,
+    "output_tokens": 150
+  },
+  "model": "gpt-4o"
+}
+```
+
+### Get Agent Run
+
+Retrieve details of a specific agent run.
+
+<ParamField path="GET /agents/{agent_id}/runs/{run_id}" type="endpoint">
+  Returns the complete run details including messages and metrics.
+</ParamField>
+
+**Path Parameters:**
+- `agent_id` (string, required) - The agent identifier
+- `run_id` (string, required) - The run identifier
+
+**Required Scopes:** `agents:read` or `agents:{agent_id}:read`
+
+```bash
+curl http://localhost:7777/agents/research-agent/runs/run_abc123
+```
+
+## Team Endpoints
+
+### List Teams
+
+Get all available teams.
+
+<ParamField path="GET /teams" type="endpoint">
+  Returns list of teams the authenticated user has access to.
+</ParamField>
+
+**Required Scopes:** `teams:read`
+
+```bash
+curl http://localhost:7777/teams
+```
+
+**Response:**
+
+```json
+{
+  "teams": [
+    {
+      "id": "research-team",
+      "name": "Research Team",
+      "description": "Team for collaborative research",
+      "model": "openai:gpt-4o",
+      "members": [
+        {"id": "researcher", "name": "Researcher"},
+        {"id": "analyst", "name": "Analyst"}
+      ]
+    }
+  ]
+}
+```
+
+### Run Team
+
+Execute a team with a message.
+
+<ParamField path="POST /teams/{team_id}/runs" type="endpoint">
+  Creates a new team run. Team coordinates member agents to complete the task.
+</ParamField>
+
+**Path Parameters:**
+- `team_id` (string, required) - The unique identifier of the team
+
+**Form Data:** Same as agent runs (message, session_id, user_id, etc.)
+
+**Required Scopes:** `teams:run` or `teams:{team_id}:run`
+
+```bash
+curl -X POST http://localhost:7777/teams/research-team/runs \
+  -F "message=Research and summarize quantum computing"
+```
+
+## Workflow Endpoints
+
+### List Workflows
+
+Get all available workflows.
+
+<ParamField path="GET /workflows" type="endpoint">
+  Returns list of workflows the authenticated user has access to.
+</ParamField>
+
+**Required Scopes:** `workflows:read`
+
+```bash
+curl http://localhost:7777/workflows
+```
+
+**Response:**
+
+```json
+{
+  "workflows": [
+    {
+      "id": "content-workflow",
+      "name": "Content Creation Workflow",
+      "description": "Research and write content",
+      "steps": [
+        {"name": "research", "agent": "researcher"},
+        {"name": "write", "agent": "writer"}
+      ]
+    }
+  ]
+}
+```
+
+### Run Workflow
+
+Execute a workflow.
+
+<ParamField path="POST /workflows/{workflow_id}/runs" type="endpoint">
+  Creates a new workflow run. Executes all steps in sequence.
+</ParamField>
+
+**Path Parameters:**
+- `workflow_id` (string, required) - The unique identifier of the workflow
+
+**Form Data:** Same as agent runs (message, session_id, user_id, etc.)
+
+**Required Scopes:** `workflows:run` or `workflows:{workflow_id}:run`
+
+```bash
+curl -X POST http://localhost:7777/workflows/content-workflow/runs \
+  -F "message=Create an article about AI"
+```
+
+## Session Endpoints
+
+### List Sessions
+
+Retrieve all sessions for a user or agent.
+
+<ParamField path="GET /sessions" type="endpoint">
+  Returns list of conversation sessions.
+</ParamField>
+
+**Query Parameters:**
+
+<ParamField query="user_id" type="string">
+  Filter sessions by user ID
+</ParamField>
+
+<ParamField query="agent_id" type="string">
+  Filter sessions by agent ID
+</ParamField>
+
+<ParamField query="limit" type="integer" default="100">
+  Maximum number of sessions to return
+</ParamField>
+
+**Required Scopes:** `sessions:read`
+
+```bash
+curl "http://localhost:7777/sessions?user_id=user-123&limit=10"
+```
+
+**Response:**
+
+```json
+{
+  "sessions": [
+    {
+      "session_id": "session_xyz789",
+      "user_id": "user-123",
+      "agent_id": "research-agent",
+      "created_at": "2026-03-04T10:30:00Z",
+      "updated_at": "2026-03-04T10:35:00Z",
+      "message_count": 6
+    }
+  ]
+}
+```
+
+### Get Session
+
+Retrieve complete session history.
+
+<ParamField path="GET /sessions/{session_id}" type="endpoint">
+  Returns all messages and metadata for a session.
+</ParamField>
+
+**Path Parameters:**
+- `session_id` (string, required) - The session identifier
+
+**Required Scopes:** `sessions:read`
+
+```bash
+curl http://localhost:7777/sessions/session_xyz789
+```
+
+**Response:**
+
+```json
+{
+  "session_id": "session_xyz789",
+  "user_id": "user-123",
+  "agent_id": "research-agent",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is quantum computing?",
+      "timestamp": "2026-03-04T10:30:00Z"
+    },
+    {
+      "role": "assistant",
+      "content": "Quantum computing is...",
+      "timestamp": "2026-03-04T10:30:05Z"
+    }
+  ],
+  "memory": {
+    "topics": ["quantum computing", "technology"],
+    "summary": "User learning about quantum computing"
+  }
+}
+```
+
+### Delete Session
+
+Delete a session and its history.
+
+<ParamField path="DELETE /sessions/{session_id}" type="endpoint">
+  Permanently deletes the session and all associated data.
+</ParamField>
+
+**Path Parameters:**
+- `session_id` (string, required) - The session identifier
+
+**Required Scopes:** `sessions:delete`
+
+```bash
+curl -X DELETE http://localhost:7777/sessions/session_xyz789
+```
+
+## Knowledge Endpoints
+
+### List Knowledge Bases
+
+Get all available knowledge bases.
+
+<ParamField path="GET /knowledge" type="endpoint">
+  Returns list of knowledge bases and their configurations.
+</ParamField>
+
+**Required Scopes:** `knowledge:read`
+
+```bash
+curl http://localhost:7777/knowledge
+```
+
+**Response:**
+
+```json
+{
+  "knowledge_instances": [
+    {
+      "id": "agno_docs",
+      "name": "Agno Docs",
+      "description": "Agno framework documentation",
+      "db_id": "9c884dc4-9066-448c-9074-ef49ec7eb73c",
+      "table": "agno_knowledge",
+      "document_count": 150
+    }
+  ]
+}
+```
+
+## Memory Endpoints
+
+### Get User Memory
+
+Retrieve memory for a specific user.
+
+<ParamField path="GET /memory" type="endpoint">
+  Returns user memory including facts, preferences, and conversation summaries.
+</ParamField>
+
+**Query Parameters:**
+
+<ParamField query="user_id" type="string" required>
+  User identifier
+</ParamField>
+
+**Required Scopes:** `memory:read`
+
+```bash
+curl "http://localhost:7777/memory?user_id=user-123"
+```
+
+## Metrics & Traces
+
+### Get Metrics
+
+Retrieve execution metrics.
+
+<ParamField path="GET /metrics" type="endpoint">
+  Returns performance metrics for agents, teams, and workflows.
+</ParamField>
+
+**Required Scopes:** `metrics:read`
+
+```bash
+curl http://localhost:7777/metrics
+```
+
+### Get Traces
+
+Retrieve execution traces for debugging.
+
+<ParamField path="GET /traces" type="endpoint">
+  Returns OpenTelemetry traces for agent executions.
+</ParamField>
+
+**Query Parameters:**
+
+<ParamField query="run_id" type="string">
+  Filter traces by run ID
+</ParamField>
+
+<ParamField query="limit" type="integer" default="100">
+  Maximum number of traces to return
+</ParamField>
+
+**Required Scopes:** `traces:read`
+
+```bash
+curl "http://localhost:7777/traces?run_id=run_abc123"
+```
+
+## WebSocket Endpoints
+
+### Stream Agent Responses
+
+Connect via WebSocket for real-time streaming.
+
+<ParamField path="WS /ws/agents/{agent_id}" type="endpoint">
+  WebSocket endpoint for streaming agent responses.
+</ParamField>
+
+**Path Parameters:**
+- `agent_id` (string, required) - The agent identifier
+
+**Query Parameters:**
+
+<ParamField query="token" type="string" required>
+  JWT authentication token
+</ParamField>
+
+**Example:**
+
+```javascript
+const ws = new WebSocket(
+  'ws://localhost:7777/ws/agents/research-agent?token=YOUR_JWT_TOKEN'
+);
+
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    message: 'What is quantum computing?',
+    session_id: 'session_xyz789'
+  }));
+};
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log('Agent response:', data.content);
+};
+```
+
+## Error Responses
+
+All endpoints return standard HTTP status codes:
+
+| Status Code | Description |
+|-------------|-------------|
+| 200 | Success |
+| 400 | Bad Request - Invalid parameters |
+| 401 | Unauthorized - Missing or invalid token |
+| 403 | Forbidden - Insufficient permissions |
+| 404 | Not Found - Resource doesn't exist |
+| 422 | Validation Error - Invalid request format |
+| 500 | Internal Server Error |
+| 503 | Service Unavailable - Feature not enabled |
+
+**Error Response Format:**
+
+```json
+{
+  "detail": "Error message describing what went wrong"
+}
+```
+
+**Examples:**
+
+```json
+// 401 Unauthorized
+{
+  "detail": "Invalid or expired token"
+}
+
+// 403 Forbidden
+{
+  "detail": "Access denied to run this agent"
+}
+
+// 404 Not Found
+{
+  "detail": "Agent with id 'unknown-agent' not found"
+}
+
+// 422 Validation Error
+{
+  "detail": [
+    {
+      "loc": ["body", "message"],
+      "msg": "field required",
+      "type": "value_error.missing"
+    }
+  ]
+}
+```
+
+## Rate Limiting
+
+AgentOS does not implement rate limiting by default. For production deployments, consider adding rate limiting via:
+
+- **Nginx**: Use `limit_req` module
+- **API Gateway**: AWS API Gateway, Kong, etc.
+- **Application-level**: FastAPI middleware like `slowapi`
+
+## Interactive Documentation
+
+AgentOS automatically generates interactive API documentation:
+
+- **Swagger UI**: http://localhost:7777/docs
+- **ReDoc**: http://localhost:7777/redoc
+- **OpenAPI JSON**: http://localhost:7777/openapi.json
+
+Use these for testing endpoints and exploring the API.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Getting Started" icon="rocket" href="/agent-os/getting-started">
+    Build your first AgentOS application
+  </Card>
+  <Card title="Authentication" icon="shield" href="/agent-os/authentication">
+    Secure your API with JWT and RBAC
+  </Card>
+</CardGroup>

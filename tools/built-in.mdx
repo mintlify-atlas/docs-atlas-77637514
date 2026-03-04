@@ -1,0 +1,511 @@
+---
+title: Built-in Tools
+description: Learn how to use Agno's most popular built-in tools with real examples
+---
+
+## Introduction
+
+This guide covers the most commonly used built-in tools in Agno. Each section includes real code examples and usage patterns.
+
+## Financial Data: YFinanceTools
+
+Access stock market data, company information, and financial metrics from Yahoo Finance.
+
+### Installation
+
+```bash
+pip install yfinance
+```
+
+### Basic Usage
+
+```python
+from agno.agent import Agent
+from agno.tools.yfinance import YFinanceTools
+
+agent = Agent(
+    tools=[YFinanceTools()],
+    instructions="You are a financial analyst.",
+    markdown=True
+)
+
+agent.print_response("What is the current price of NVDA?")
+```
+
+### Selective Functions
+
+Enable only the functions you need:
+
+```python
+# Only basic stock information
+tools = YFinanceTools(
+    enable_stock_price=True,
+    enable_company_info=True,
+    enable_historical_prices=True,
+)
+
+# All financial analysis functions
+tools = YFinanceTools(all=True)
+
+# Custom combination
+tools = YFinanceTools(
+    enable_stock_price=True,
+    enable_analyst_recommendations=True,
+    enable_company_news=True,
+)
+```
+
+### Available Functions
+
+<ParamField path="get_current_stock_price" type="function">
+  Get the current stock price for a symbol
+  
+  **Parameters:**
+  - `symbol` (str): Stock ticker symbol (e.g., "NVDA")
+</ParamField>
+
+<ParamField path="get_company_info" type="function">
+  Get company profile and overview
+  
+  **Parameters:**
+  - `symbol` (str): Stock ticker symbol
+</ParamField>
+
+<ParamField path="get_historical_stock_prices" type="function">
+  Get historical price data
+  
+  **Parameters:**
+  - `symbol` (str): Stock ticker symbol
+  - `period` (str): Time period (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max)
+  - `interval` (str): Data interval (1d, 5d, 1wk, 1mo, 3mo)
+</ParamField>
+
+<ParamField path="get_stock_fundamentals" type="function">
+  Get fundamental financial data
+</ParamField>
+
+<ParamField path="get_analyst_recommendations" type="function">
+  Get analyst ratings and recommendations
+</ParamField>
+
+<ParamField path="get_company_news" type="function">
+  Get recent company news
+  
+  **Parameters:**
+  - `symbol` (str): Stock ticker symbol
+  - `num_stories` (int): Number of stories to return
+</ParamField>
+
+### Complete Example
+
+```python
+from agno.agent import Agent
+from agno.tools.yfinance import YFinanceTools
+
+# Create agent with full financial capabilities
+agent = Agent(
+    tools=[YFinanceTools(all=True)],
+    description="You are a comprehensive investment analyst.",
+    instructions=[
+        "Use any financial function for investment analysis",
+        "Format responses using markdown and tables",
+        "Provide detailed analysis and insights",
+        "Include relevant financial metrics",
+    ],
+    markdown=True,
+)
+
+agent.print_response(
+    "Provide a comprehensive analysis of TSLA including price, "
+    "fundamentals, and analyst views",
+    markdown=True
+)
+```
+
+## Web Search: DuckDuckGoTools
+
+Perform web searches and news searches using DuckDuckGo.
+
+### Installation
+
+```bash
+pip install duckduckgo-search
+```
+
+### Basic Usage
+
+```python
+from agno.agent import Agent
+from agno.tools.duckduckgo import DuckDuckGoTools
+
+agent = Agent(
+    tools=[DuckDuckGoTools()],
+    instructions="Search the web for information."
+)
+
+agent.print_response("What are the latest developments in AI?")
+```
+
+### Configuration Options
+
+```python
+from agno.tools.duckduckgo import DuckDuckGoTools
+
+tools = DuckDuckGoTools(
+    enable_search=True,      # Enable web search
+    enable_news=True,        # Enable news search
+    fixed_max_results=5,     # Limit results
+    timelimit="w",          # Time limit: d, w, m, y
+    region="us-en",         # Region code
+    timeout=10,             # Request timeout
+)
+```
+
+### Available Functions
+
+<ParamField path="web_search" type="function">
+  Search the web using DuckDuckGo
+  
+  **Parameters:**
+  - `query` (str): Search query
+  - `max_results` (int): Maximum number of results
+</ParamField>
+
+<ParamField path="search_news" type="function">
+  Search for news articles
+  
+  **Parameters:**
+  - `query` (str): Search query
+  - `max_results` (int): Maximum number of results
+</ParamField>
+
+## GitHub Integration: GithubTools
+
+Manage repositories, pull requests, issues, and more on GitHub.
+
+### Installation
+
+```bash
+pip install pygithub
+```
+
+### Basic Usage
+
+```python
+from agno.agent import Agent
+from agno.tools.github import GithubTools
+import os
+
+agent = Agent(
+    tools=[GithubTools(access_token=os.getenv("GITHUB_ACCESS_TOKEN"))],
+    instructions="You can interact with GitHub repositories."
+)
+
+agent.print_response("Search for Python ML repositories with over 1000 stars")
+```
+
+### Key Functions
+
+<ParamField path="search_repositories" type="function">
+  Search for repositories on GitHub
+  
+  **Parameters:**
+  - `query` (str): Search query (e.g., "language:python stars:>1000")
+  - `sort` (str): Sort by "stars", "forks", or "updated"
+  - `order` (str): "asc" or "desc"
+  - `page` (int): Page number
+  - `per_page` (int): Results per page (max 100)
+</ParamField>
+
+<ParamField path="get_repository" type="function">
+  Get details of a specific repository
+  
+  **Parameters:**
+  - `repo_name` (str): Full repository name (e.g., "owner/repo")
+</ParamField>
+
+<ParamField path="create_issue" type="function">
+  Create an issue in a repository
+  
+  **Parameters:**
+  - `repo_name` (str): Repository name
+  - `title` (str): Issue title
+  - `body` (str): Issue description
+</ParamField>
+
+<ParamField path="get_pull_request" type="function">
+  Get details of a pull request
+  
+  **Parameters:**
+  - `repo_name` (str): Repository name
+  - `pr_number` (int): PR number
+</ParamField>
+
+<ParamField path="create_pull_request" type="function">
+  Create a new pull request
+  
+  **Parameters:**
+  - `repo_name` (str): Repository name
+  - `title` (str): PR title
+  - `body` (str): PR description
+  - `head` (str): Source branch
+  - `base` (str): Target branch
+</ParamField>
+
+### Complete Example
+
+```python
+from agno.agent import Agent
+from agno.tools.github import GithubTools
+import os
+
+# Create agent with GitHub access
+agent = Agent(
+    tools=[GithubTools(
+        access_token=os.getenv("GITHUB_ACCESS_TOKEN"),
+        # Optional: filter available tools
+        include_tools=[
+            "search_repositories",
+            "get_repository",
+            "create_issue",
+            "get_pull_request",
+        ]
+    )],
+    instructions=[
+        "Help users interact with GitHub repositories",
+        "Always confirm before creating issues or PRs",
+        "Provide clear summaries of repository information",
+    ],
+    markdown=True,
+)
+
+agent.print_response(
+    "Find the top 5 Python web frameworks on GitHub and "
+    "summarize their features"
+)
+```
+
+## Web Scraping: FirecrawlTools
+
+Extract content from websites with AI-powered scraping.
+
+### Installation
+
+```bash
+pip install firecrawl-py
+```
+
+### Basic Usage
+
+```python
+from agno.agent import Agent
+from agno.tools.firecrawl import FirecrawlTools
+import os
+
+agent = Agent(
+    tools=[FirecrawlTools(api_key=os.getenv("FIRECRAWL_API_KEY"))],
+    instructions="Extract and summarize web content."
+)
+
+agent.print_response("Scrape https://example.com and summarize the content")
+```
+
+## Database: PostgresTools
+
+Execute SQL queries and manage PostgreSQL databases.
+
+### Installation
+
+```bash
+pip install psycopg[binary] sqlalchemy
+```
+
+### Basic Usage
+
+```python
+from agno.agent import Agent
+from agno.tools.postgres import PostgresTools
+
+# Database connection
+db_url = "postgresql+psycopg://user:password@localhost:5432/mydb"
+
+agent = Agent(
+    tools=[PostgresTools(db_url=db_url)],
+    instructions="You can query the database.",
+    markdown=True
+)
+
+agent.print_response("Show me the top 10 customers by revenue")
+```
+
+### Available Functions
+
+<ParamField path="run_query" type="function">
+  Execute a SELECT query
+  
+  **Parameters:**
+  - `query` (str): SQL SELECT statement
+</ParamField>
+
+<ParamField path="describe_table" type="function">
+  Get table schema information
+  
+  **Parameters:**
+  - `table_name` (str): Name of the table
+</ParamField>
+
+<ParamField path="list_tables" type="function">
+  List all tables in the database
+</ParamField>
+
+## Slack Integration: SlackTools
+
+Send messages, manage channels, and interact with Slack workspaces.
+
+### Installation
+
+```bash
+pip install slack-sdk
+```
+
+### Basic Usage
+
+```python
+from agno.agent import Agent
+from agno.tools.slack import SlackTools
+import os
+
+agent = Agent(
+    tools=[SlackTools(token=os.getenv("SLACK_BOT_TOKEN"))],
+    instructions="You can send messages to Slack."
+)
+
+agent.print_response("Send a summary of today's tasks to #general")
+```
+
+## Knowledge Base: KnowledgeTools
+
+Access RAG (Retrieval Augmented Generation) knowledge bases.
+
+### Basic Usage
+
+```python
+from agno.agent import Agent
+from agno.knowledge.pdf import PDFKnowledgeBase
+from agno.vectordb.pgvector import PgVector
+from agno.tools.knowledge import KnowledgeTools
+
+# Create knowledge base
+knowledge = PDFKnowledgeBase(
+    path="data/pdfs",
+    vector_db=PgVector(
+        table_name="pdf_documents",
+        db_url="postgresql+psycopg://localhost:5432/ai"
+    )
+)
+
+# Create agent with knowledge access
+agent = Agent(
+    knowledge=knowledge,
+    tools=[KnowledgeTools(knowledge_base=knowledge)],
+    instructions="Use the knowledge base to answer questions.",
+    search_knowledge=True,
+)
+
+agent.print_response("What does the documentation say about deployment?")
+```
+
+## Python Code Execution: PythonTools
+
+Execute Python code safely in a controlled environment.
+
+### Installation
+
+```bash
+pip install pandas matplotlib
+```
+
+### Basic Usage
+
+```python
+from agno.agent import Agent
+from agno.tools.python import PythonTools
+
+agent = Agent(
+    tools=[PythonTools()],
+    instructions="You can write and execute Python code.",
+    markdown=True
+)
+
+agent.print_response(
+    "Create a bar chart showing monthly sales: "
+    "Jan:10000, Feb:12000, Mar:15000, Apr:11000"
+)
+```
+
+### Available Functions
+
+<ParamField path="run_python_code" type="function">
+  Execute Python code
+  
+  **Parameters:**
+  - `code` (str): Python code to execute
+  - `pip_packages` (list): Packages to install before execution
+</ParamField>
+
+## Shell Commands: ShellTools
+
+Execute shell commands in a controlled environment.
+
+### Basic Usage
+
+```python
+from agno.agent import Agent
+from agno.tools.shell import ShellTools
+
+agent = Agent(
+    tools=[ShellTools()],
+    instructions="You can run shell commands."
+)
+
+agent.print_response("List all Python files in the current directory")
+```
+
+<Warning>
+Be cautious when using ShellTools. Only use with trusted inputs and consider security implications.
+</Warning>
+
+## API Integration: APITools
+
+Make HTTP requests to any REST API.
+
+### Basic Usage
+
+```python
+from agno.agent import Agent
+from agno.tools.api import APITools
+
+agent = Agent(
+    tools=[APITools()],
+    instructions="You can make API requests."
+)
+
+agent.print_response("Get data from https://api.github.com/users/octocat")
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Custom Tools" icon="code" href="/tools/custom-tools">
+    Learn how to create your own custom tools
+  </Card>
+  <Card title="MCP Integration" icon="plug" href="/tools/mcp">
+    Connect to Model Context Protocol servers
+  </Card>
+  <Card title="Tool Cookbook" icon="book" href="https://github.com/agno-agi/agno/tree/main/cookbook/91_tools">
+    See 100+ real-world examples in the cookbook
+  </Card>
+  <Card title="Tools Overview" icon="toolbox" href="/tools/overview">
+    Browse all 100+ available tools
+  </Card>
+</CardGroup>

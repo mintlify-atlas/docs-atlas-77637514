@@ -1,0 +1,34 @@
+---
+title: "Azure"
+description: "Use Azure OpenAI Service with Agno"
+---
+
+## Setup
+
+```bash
+pip install agno[azure]
+```
+
+Configure Azure credentials:
+
+```bash
+export AZURE_OPENAI_API_KEY="your-key"
+export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
+export AZURE_OPENAI_API_VERSION="2024-08-01"
+```
+
+## Usage
+
+```python
+from agno.agent import Agent
+from agno.models.azure import AzureOpenAIResponses
+
+agent = Agent(
+    model=AzureOpenAIResponses(
+        id="gpt-4",
+        azure_deployment="your-deployment-name"
+    )
+)
+```
+
+See [Azure OpenAI documentation](https://learn.microsoft.com/azure/ai-services/openai/) for details.
